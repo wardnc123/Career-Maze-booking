@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessions } from '@/services/sessionService';
+import { ensureLoaded } from '@/lib/dataManager';
 import type { SessionFilter, SlotStatus } from '@/models/types';
 
-/**
- * GET /api/sessions?eventId=...&date=...&status=...
- * Returns sessions with optional filters. No authentication required.
- */
 export async function GET(request: NextRequest) {
+  await ensureLoaded();
   const { searchParams } = request.nextUrl;
   const eventId = searchParams.get('eventId') ?? undefined;
   const date = searchParams.get('date') ?? undefined;

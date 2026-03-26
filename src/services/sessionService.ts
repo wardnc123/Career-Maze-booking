@@ -53,9 +53,18 @@ function generateDateRange(): string[] {
 }
 
 // ─── In-memory stores ────────────────────────────────────────────────────────
+// These are backed by the dataManager for persistence on Vercel.
 
-let sessions: Session[] = [];
-let events: CareerMazeEvent[] = [];
+import {
+  getEventsStore, getSessionsStore,
+  addEvent as dmAddEvent, addSession as dmAddSession,
+  setSessionsStore, removeSessionsById,
+} from '@/lib/dataManager';
+
+// Convenience getters that return the live arrays from dataManager
+function getEvents_(): CareerMazeEvent[] { return getEventsStore(); }
+function getSessions_(): Session[] { return getSessionsStore(); }
+
 let initialized = false;
 
 // ─── Event management ────────────────────────────────────────────────────────
@@ -74,38 +83,29 @@ export function createEvent(title: string, dates: string[], timeSlots: string[],
     timeSlots: [...timeSlots].sort(),
     createdAt: new Date(),
   };
-  events.push(event);
+  dmAddEvent(event);
 
   const generated: Session[] = [];
   for (const date of dates) {
     for (const londonTime of timeSlots) {
       const session: Session = {
-        id: uuidv4(),
-        eventId,
-        sessionDate: date,
-        startTime: londonToUtc(londonTime),
-        bookingCount: 0,
-        slotStatus: 'Available' as SlotStatus,
-        createdAt: new Date(),
+        id: uuidv4(), eventId, sessionDate: date,
+        startTime: londonToUtc(londonTime), bookingCount: 0,
+        slotStatus: 'Available' as SlotStatus, createdAt: new Date(),
       };
       generated.push(session);
+      dmAddSession(session);
     }
   }
-  sessions.push(...generated);
-
   return { event, sessions: generated };
 }
 
-/** Get all events. */
 export function getEvents(): CareerMazeEvent[] {
-  ensureInitialized();
-  return [...events];
+  return [...getEvents_()];
 }
 
-/** Get a single event by ID. */
 export function getEvent(eventId: string): CareerMazeEvent | null {
-  ensureInitialized();
-  return events.find((e) => e.id === eventId) ?? null;
+  return getEvents_().find((e) => e.id === eventId) ?? null;
 }
 
 /**
@@ -119,8 +119,7 @@ export function updateEvent(
   eventId: string,
   updates: { title?: string; location?: string; dates?: string[]; timeSlots?: string[] }
 ): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number } | null {
-  ensureInitialized();
-  const event = events.find((e) => e.id === eventId);
+  const event = getEvents_().find((e) => e.id === eventId);
   if (!event) return null;
 
   if (updates.title) event.title = updates.title;
@@ -142,7 +141,7 @@ export function updateEvent(
 
   // Build set of existing (date, utcTime) combos for this event
   const existingCombos = new Map<string, Session>();
-  for (const s of sessions) {
+  for (const s of getSessions_()) {
     if (s.eventId === eventId) {
       existingCombos.set(`${s.sessionDate}|${s.startTime}`, s);
     }
@@ -157,14 +156,14 @@ export function updateEvent(
     }
   }
   if (toRemoveIds.size > 0) {
-    sessions = sessions.filter((s) => !toRemoveIds.has(s.id));
+    removeSessionsById(toRemoveIds);
   }
 
   // Add sessions for new combos that don't exist yet
   for (const combo of desiredCombos) {
     if (!existingCombos.has(combo)) {
       const [date, utcTime] = combo.split('|');
-      sessions.push({
+      dmAddSession({
         id: uuidv4(),
         eventId,
         sessionDate: date,
@@ -183,40 +182,11 @@ export function updateEvent(
   return { event, sessionsAdded, sessionsRemoved };
 }
 
-// ─── Default session generation (for tests and initial load) ─────────────────
+// ─── Default session generation (for tests) ─────────────────────────────────
 
 export function generateSessions(): Session[] {
   const dates = generateDateRange();
-  const eventId = uuidv4();
-
-  // Create a default event
-  const event: CareerMazeEvent = {
-    id: eventId,
-    title: 'Career Maze August 2026',
-    location: '',
-    dates: [...dates],
-    timeSlots: [...ALL_SLOTS_LONDON],
-    createdAt: new Date(),
-  };
-
-  const generated: Session[] = [];
-  for (const date of dates) {
-    for (const londonTime of ALL_SLOTS_LONDON) {
-      const session: Session = {
-        id: uuidv4(),
-        eventId,
-        sessionDate: date,
-        startTime: londonToUtc(londonTime),
-        bookingCount: 0,
-        slotStatus: 'Available' as SlotStatus,
-        createdAt: new Date(),
-      };
-      generated.push(session);
-    }
-  }
-
-  sessions = generated;
-  events = [event];
+  const { sessions: generated } = createEvent('Career Maze August 2026', dates, [...ALL_SLOTS_LONDON]);
   initialized = true;
   return generated;
 }
@@ -227,42 +197,37 @@ export function generateCustomSessions(dates: string[], timeSlots: string[]): Se
 }
 
 function ensureInitialized(): void {
-  if (!initialized) {
-    // Start with empty stores — admin creates events via /admin/setup
-    initialized = true;
-  }
+  if (!initialized) initialized = true;
 }
 
 // ─── Query functions ─────────────────────────────────────────────────────────
 
 export function getSessions(filters?: SessionFilter): Session[] {
-  ensureInitialized();
-  let result = [...sessions];
+  const result = [...getSessions_()];
   if (!filters) return result;
-  if (filters.eventId) result = result.filter((s) => s.eventId === filters.eventId);
-  if (filters.date) result = result.filter((s) => s.sessionDate === filters.date);
+  let filtered = result;
+  if (filters.eventId) filtered = filtered.filter((s) => s.eventId === filters.eventId);
+  if (filters.date) filtered = filtered.filter((s) => s.sessionDate === filters.date);
   if (filters.timeRange) {
     const { start, end } = filters.timeRange;
-    result = result.filter((s) => { const t = s.startTime.slice(0, 5); return t >= start && t <= end; });
+    filtered = filtered.filter((s) => { const t = s.startTime.slice(0, 5); return t >= start && t <= end; });
   }
-  if (filters.status) result = result.filter((s) => s.slotStatus === filters.status);
-  return result;
+  if (filters.status) filtered = filtered.filter((s) => s.slotStatus === filters.status);
+  return filtered;
 }
 
 export function getSession(sessionId: string): Session | null {
-  ensureInitialized();
-  return sessions.find((s) => s.id === sessionId) ?? null;
+  return getSessions_().find((s) => s.id === sessionId) ?? null;
 }
 
 export function getSessionsByDate(date: string): Session[] {
-  ensureInitialized();
-  return sessions.filter((s) => s.sessionDate === date);
+  return getSessions_().filter((s) => s.sessionDate === date);
 }
 
 export function getEventConfig(): { dates: string[]; timeSlots: string[] } {
-  ensureInitialized();
-  const dates = [...new Set(sessions.map((s) => s.sessionDate))].sort();
-  const timeSlots = [...new Set(sessions.map((s) => utcToLondon(s.startTime)))].sort();
+  const allSessions = getSessions_();
+  const dates = [...new Set(allSessions.map((s) => s.sessionDate))].sort();
+  const timeSlots = [...new Set(allSessions.map((s) => utcToLondon(s.startTime)))].sort();
   return { dates, timeSlots };
 }
 
