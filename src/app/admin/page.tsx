@@ -195,6 +195,7 @@ export default function AdminOverviewPage() {
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Date</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Status</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,6 +207,11 @@ export default function AdminOverviewPage() {
                     <td className="px-3 py-2">{b.sessionDate}</td>
                     <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>
                     <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs font-medium ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{b.status}</span></td>
+                    <td className="px-3 py-2">
+                      {b.status === 'confirmed' && (
+                        <button onClick={async () => { if (!confirm(`Remove ${b.name} (${b.email}) from this session?`)) return; setAllBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'cancelled' } : x)); fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' }).catch(() => {}); }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
