@@ -158,11 +158,12 @@ export default function AdminOverviewPage() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
           <StatCard label="Total Bookings" value={stats.totalBooked} sub={`of ${stats.totalCapacity} capacity`} color="bg-blue-50 text-blue-800 border-blue-200" />
           <StatCard label="Utilisation" value={`${stats.utilisation}%`} sub={`${stats.full} full sessions`} color="bg-emerald-50 text-emerald-800 border-emerald-200" />
           <StatCard label="Empty Sessions" value={stats.empty} sub={`of ${stats.total} total`} color="bg-amber-50 text-amber-800 border-amber-200" />
-          <StatCard label="Partially Booked" value={stats.partial} sub="1–2 attendees" color="bg-violet-50 text-violet-800 border-violet-200" />
+          <StatCard label="Partially Booked" value={stats.partial} sub={`of ${stats.total} total`} color="bg-violet-50 text-violet-800 border-violet-200" />
+          <StatCard label="Fully Booked" value={stats.full} sub={`of ${stats.total} total`} color="bg-red-50 text-red-800 border-red-200" />
         </div>
 
         {/* Attendees section */}
