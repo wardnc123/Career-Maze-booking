@@ -122,7 +122,7 @@ export default function AdminOverviewPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Event filter */}
-        {events.length > 1 && (
+        {events.length >= 1 && (
           <section className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-semibold text-gray-900">Filter by Event</h2>
@@ -178,7 +178,7 @@ export default function AdminOverviewPage() {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
-                      {events.length > 1 && <th className="text-left px-3 py-2 font-medium text-gray-700">Event</th>}
+                      {events.length >= 1 && <th className="text-left px-3 py-2 font-medium text-gray-700">Event</th>}
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Bookings</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Status</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Availability</th>
@@ -191,7 +191,7 @@ export default function AdminOverviewPage() {
                       return (
                         <tr key={s.id} className={`border-b border-gray-100 last:border-0 ${getRowColor(s.bookingCount)}`}>
                           <td className="px-3 py-2 font-medium text-gray-900">{utcToLondon(s.startTime)}</td>
-                          {events.length > 1 && <td className="px-3 py-2 text-gray-600 text-xs">{event?.title ?? '—'}</td>}
+                          {events.length >= 1 && <td className="px-3 py-2 text-gray-600 text-xs">{event?.title ?? '—'}</td>}
                           <td className="px-3 py-2 text-gray-700">{s.bookingCount}/3</td>
                           <td className="px-3 py-2"><span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${badge.bg}`}>{badge.label}</span></td>
                           <td className="px-3 py-2">
