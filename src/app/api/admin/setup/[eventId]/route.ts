@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEvent, updateEvent } from '@/services/sessionService';
+import { getEvent, updateEvent, deleteEvent } from '@/services/sessionService';
 import { ensureLoaded, persist } from '@/lib/dataManager';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -27,4 +27,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   await persist();
   return NextResponse.json({ message: 'Event updated', event: result.event, sessionsAdded: result.sessionsAdded, sessionsRemoved: result.sessionsRemoved });
+}
+
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+  await ensureLoaded();
+  const { eventId } = await params;
+  const deleted = deleteEvent(eventId);
+  if (!deleted) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  await persist();
+  return NextResponse.json({ message: 'Event deleted' });
 }

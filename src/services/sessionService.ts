@@ -110,6 +110,18 @@ export function getEvent(eventId: string): CareerMazeEvent | null {
   return getEvents_().find((e) => e.id === eventId) ?? null;
 }
 
+/** Delete an event and all its sessions. */
+export function deleteEvent(eventId: string): boolean {
+  const events = getEvents_();
+  const idx = events.findIndex((e) => e.id === eventId);
+  if (idx === -1) return false;
+  events.splice(idx, 1);
+  // Remove all sessions for this event
+  const sessionIds = new Set(getSessions_().filter((s) => s.eventId === eventId).map((s) => s.id));
+  removeSessionsById(sessionIds);
+  return true;
+}
+
 /**
  * Update an existing event's title, dates, and/or time slots.
  * - Title change: updates the event record only.

@@ -143,7 +143,10 @@ export default function AdminOverviewPage() {
                       <div className="font-medium">{event.title}</div>
                       <div className={`text-xs mt-0.5 ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>{eventSessions.length} sessions · {booked}/{capacity} booked</div>
                     </button>
-                    <a href={`/admin/edit/${event.id}`} className={`text-xs mt-1 inline-block ${isSelected ? 'text-gray-300 hover:text-white' : 'text-blue-600 hover:underline'}`}>✏️ Edit</a>
+                    <div className="flex gap-2 mt-1">
+                      <a href={`/admin/edit/${event.id}`} className={`text-xs ${isSelected ? 'text-gray-300 hover:text-white' : 'text-blue-600 hover:underline'}`}>✏️ Edit</a>
+                      <button onClick={async (e) => { e.stopPropagation(); if(!confirm(`Delete "${event.title}"? This removes all sessions and bookings for this event.`)) return; await fetch(`/api/admin/setup/${event.id}`,{method:'DELETE'}); window.location.reload(); }} className={`text-xs ${isSelected ? 'text-red-300 hover:text-red-100' : 'text-red-500 hover:underline'}`}>🗑️ Delete</button>
+                    </div>
                   </div>
                 );
               })}
