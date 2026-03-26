@@ -142,7 +142,7 @@ export default function AdminOverviewPage() {
                     </button>
                     <div className="flex gap-2 mt-1">
                       <a href={`/admin/edit/${event.id}`} className={`text-xs ${isSelected ? 'text-gray-300 hover:text-white' : 'text-blue-600 hover:underline'}`}>✏️ Edit</a>
-                      <button onClick={async (e) => { e.stopPropagation(); if(!confirm(`Delete "${event.title}"? This removes all sessions and bookings for this event.`)) return; await fetch(`/api/admin/setup/${event.id}`,{method:'DELETE'}); window.location.reload(); }} className={`text-xs ${isSelected ? 'text-red-300 hover:text-red-100' : 'text-red-500 hover:underline'}`}>🗑️ Delete</button>
+                      <button onClick={async (e) => { e.stopPropagation(); if(!confirm(`Delete "${event.title}"?`)) return; setEvents(prev => prev.filter(ev => ev.id !== event.id)); setAllSessions(prev => prev.filter(s => s.eventId !== event.id)); setSelectedEventIds(prev => { const n = new Set(prev); n.delete(event.id); return n; }); fetch(`/api/admin/setup/${event.id}`,{method:'DELETE'}).catch(() => {}); }} className={`text-xs ${isSelected ? 'text-red-300 hover:text-red-100' : 'text-red-500 hover:underline'}`}>🗑️ Delete</button>
                     </div>
                   </div>
                 );

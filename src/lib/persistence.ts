@@ -30,7 +30,9 @@ export async function loadData(): Promise<AppData> {
     knownBlobUrl = match.url;
     console.log('[persistence] Found blob at:', match.url);
     
-    const response = await fetch(match.url, { cache: 'no-store' });
+    // Add timestamp to bust CDN cache
+    const bustUrl = match.url + (match.url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const response = await fetch(bustUrl, { cache: 'no-store' });
     if (!response.ok) {
       console.error('[persistence] Fetch failed:', response.status);
       return empty;
