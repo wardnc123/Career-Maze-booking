@@ -230,6 +230,19 @@ export default function BookSessionPage({
     URL.revokeObjectURL(url);
   }
 
+  // Open in Outlook Web (works on any OS)
+  function openInOutlook(booking: { referenceCode: string; name: string; role: string; pf: string }, sess: { sessionDate: string; startTime: string }) {
+    const [hours, minutes] = sess.startTime.split(':');
+    const endH = String(parseInt(hours) + 3).padStart(2, '0');
+    const startISO = `${sess.sessionDate}T${hours}:${minutes}:00`;
+    const endISO = `${sess.sessionDate}T${endH}:${minutes}:00`;
+    const subject = encodeURIComponent(`Career Maze Session - ${booking.name}`);
+    const body = encodeURIComponent(`Booking reference: ${booking.referenceCode}\nAttendee: ${booking.name}\nRole: ${booking.role}\nPF: ${booking.pf}\n\nCancel: ${window.location.origin}/cancel`);
+    const loc = encodeURIComponent(eventLocation || '');
+    const outlookUrl = `https://outlook.office.com/calendar/0/deeplink/compose?subject=${subject}&startdt=${startISO}&enddt=${endISO}&body=${body}&location=${loc}`;
+    window.open(outlookUrl, '_blank');
+  }
+
   // --- Confirmed ---
   if (pageState.kind === 'confirmed' && session) {
     return (
@@ -254,10 +267,16 @@ export default function BookSessionPage({
           </div>
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => downloadCalendar(pageState.booking, session)}
-              className="inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              onClick={() => openInOutlook(pageState.booking, session)}
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
-              📅 Add to Calendar (.ics)
+              📧 Add to Outlook
+            </button>
+            <button
+              onClick={() => downloadCalendar(pageState.booking, session)}
+              className="inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
+            >
+              📅 Download .ics file
             </button>
             <a href="/" className="inline-block px-4 py-2 bg-[#1a1a2e] text-white rounded hover:bg-[#2a2a4e] transition-colors">
               ← Back to sessions

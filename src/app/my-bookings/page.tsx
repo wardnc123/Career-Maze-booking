@@ -7,6 +7,16 @@ interface BookingInfo { id: string; name: string; email: string; role: string; p
 function formatTime(t: string) { return t ? t.slice(0, 5) : ''; }
 function formatDate(iso: string) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00Z'); return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
 
+function openInOutlook(b: BookingInfo) {
+  if (!b.sessionDate || !b.startTime) return;
+  const [hours, minutes] = b.startTime.split(':');
+  const endH = String(parseInt(hours) + 3).padStart(2, '0');
+  const subject = encodeURIComponent(`Career Maze Session - ${b.name}`);
+  const body = encodeURIComponent(`Ref: ${b.referenceCode}\nCancel: ${window.location.origin}/cancel`);
+  const loc = encodeURIComponent(b.eventLocation || '');
+  window.open(`https://outlook.office.com/calendar/0/deeplink/compose?subject=${subject}&startdt=${b.sessionDate}T${hours}:${minutes}:00&enddt=${b.sessionDate}T${endH}:${minutes}:00&body=${body}&location=${loc}`, '_blank');
+}
+
 function downloadCalendar(b: BookingInfo) {
   if (!b.sessionDate || !b.startTime) return;
   const [year, month, day] = b.sessionDate.split('-');
@@ -79,9 +89,10 @@ export default function MyBookingsPage() {
                     <p className="text-xs mt-1"><span className={`px-2 py-0.5 rounded font-medium ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{b.status}</span></p>
                   </div>
                   {b.status === 'confirmed' && (
-                    <button onClick={() => downloadCalendar(b)} className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
-                      📅 Calendar
-                    </button>
+                    <div className="flex flex-col gap-1">
+                      <button onClick={() => openInOutlook(b)} className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">📧 Outlook</button>
+                      <button onClick={() => downloadCalendar(b)} className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">📅 .ics</button>
+                    </div>
                   )}
                 </div>
               </div>
