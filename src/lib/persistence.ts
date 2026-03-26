@@ -1,7 +1,7 @@
 // Persistence layer using Neon Serverless Postgres
 // Zero caching — every read hits the database directly
 
-import { neon } from '@neondatabase/serverless';
+import { getDb } from './db';
 import type { Session, Booking, WaitlistEntry, CareerMazeEvent } from '@/models/types';
 
 export interface AppData {
@@ -9,12 +9,6 @@ export interface AppData {
   sessions: Session[];
   bookings: Booking[];
   waitlistEntries: WaitlistEntry[];
-}
-
-function getDb() {
-  const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-  if (!url) throw new Error('POSTGRES_URL not set');
-  return neon(url);
 }
 
 export async function loadData(): Promise<AppData> {

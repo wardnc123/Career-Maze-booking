@@ -3,7 +3,7 @@
 // Individual persist functions are called after mutations.
 
 import { loadData, saveEvent, saveSessions, saveSession, saveBooking, saveWaitlistEntry, deleteWaitlistEntry, deleteEventFromDb, deleteSessionsFromDb } from './persistence';
-import { initDb } from './db';
+import { initDb, getDbUrl } from './db';
 import type { Session, Booking, WaitlistEntry, CareerMazeEvent } from '@/models/types';
 
 let events: CareerMazeEvent[] = [];
@@ -12,10 +12,10 @@ let bookings: Booking[] = [];
 let waitlistEntries: WaitlistEntry[] = [];
 let dbInitialized = false;
 
-const isVercel = () => !!(process.env.POSTGRES_URL || process.env.DATABASE_URL);
+const hasDb = () => !!getDbUrl();
 
 export async function ensureLoaded(): Promise<void> {
-  if (!isVercel()) return;
+  if (!hasDb()) return;
   if (!dbInitialized) { await initDb(); dbInitialized = true; }
   const data = await loadData();
   events = data.events;
@@ -28,14 +28,14 @@ export async function ensureLoaded(): Promise<void> {
 export async function persist(): Promise<void> {}
 
 // ─── Persist helpers (called by services after mutations) ────────────────────
-export async function persistEvent(event: CareerMazeEvent) { if (isVercel()) await saveEvent(event); }
-export async function persistSessions(s: Session[]) { if (isVercel()) await saveSessions(s); }
-export async function persistSession(s: Session) { if (isVercel()) await saveSession(s); }
-export async function persistBooking(b: Booking) { if (isVercel()) await saveBooking(b); }
-export async function persistWaitlistEntry(w: WaitlistEntry) { if (isVercel()) await saveWaitlistEntry(w); }
-export async function persistDeleteWaitlist(id: string) { if (isVercel()) await deleteWaitlistEntry(id); }
-export async function persistDeleteEvent(eventId: string) { if (isVercel()) await deleteEventFromDb(eventId); }
-export async function persistDeleteSessions(ids: string[]) { if (isVercel()) await deleteSessionsFromDb(ids); }
+export async function persistEvent(event: CareerMazeEvent) { if (hasDb()) await saveEvent(event); }
+export async function persistSessions(s: Session[]) { if (hasDb()) await saveSessions(s); }
+export async function persistSession(s: Session) { if (hasDb()) await saveSession(s); }
+export async function persistBooking(b: Booking) { if (hasDb()) await saveBooking(b); }
+export async function persistWaitlistEntry(w: WaitlistEntry) { if (hasDb()) await saveWaitlistEntry(w); }
+export async function persistDeleteWaitlist(id: string) { if (hasDb()) await deleteWaitlistEntry(id); }
+export async function persistDeleteEvent(eventId: string) { if (hasDb()) await deleteEventFromDb(eventId); }
+export async function persistDeleteSessions(ids: string[]) { if (hasDb()) await deleteSessionsFromDb(ids); }
 
 // ─── Accessors ───────────────────────────────────────────────────────────────
 export function getEventsStore(): CareerMazeEvent[] { return events; }
