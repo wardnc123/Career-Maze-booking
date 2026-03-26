@@ -202,6 +202,34 @@ export default function BookSessionPage({
     );
   }
 
+  // Generate .ics content client-side for immediate download
+  function downloadCalendar(booking: { referenceCode: string; name: string; role: string; pf: string; id: string }, sess: { sessionDate: string; startTime: string }) {
+    const [year, month, day] = sess.sessionDate.split('-');
+    const [hours, minutes] = sess.startTime.split(':');
+    const dtStart = `${year}${month}${day}T${hours}${minutes}00`;
+    // 3 hour duration
+    const endH = String(parseInt(hours) + 3).padStart(2, '0');
+    const dtEnd = `${year}${month}${day}T${endH}${minutes}00`;
+    const loc = eventLocation || '';
+    const ics = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//CareerMaze//Booking//EN',
+      'BEGIN:VEVENT',
+      `DTSTART:${dtStart}`, `DTEND:${dtEnd}`,
+      `SUMMARY:Career Maze Session - ${booking.name}`,
+      `DESCRIPTION:Ref: ${booking.referenceCode}\\nAttendee: ${booking.name}\\nRole: ${booking.role}\\nPF: ${booking.pf}`,
+      loc ? `LOCATION:${loc}` : '',
+      `UID:${booking.id}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT', 'END:VCALENDAR',
+    ].filter(Boolean).join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `career-maze-${booking.referenceCode}.ics`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   // --- Confirmed ---
   if (pageState.kind === 'confirmed' && session) {
     return (
@@ -225,13 +253,12 @@ export default function BookSessionPage({
             )}
           </div>
           <div className="flex flex-col gap-3">
-            <a
-              href={`/api/bookings/${pageState.booking.id}/calendar`}
-              download
+            <button
+              onClick={() => downloadCalendar(pageState.booking, session)}
               className="inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
             >
               📅 Add to Calendar (.ics)
-            </a>
+            </button>
             <a href="/" className="inline-block px-4 py-2 bg-[#1a1a2e] text-white rounded hover:bg-[#2a2a4e] transition-colors">
               ← Back to sessions
             </a>
