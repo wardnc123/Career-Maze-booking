@@ -1,9 +1,8 @@
-// Persistence layer using Vercel Blob Storage
+// Persistence layer using Neon Serverless Postgres
+// Zero caching — every read hits the database directly
 
-import { put, list, del } from '@vercel/blob';
+import { neon } from '@neondatabase/serverless';
 import type { Session, Booking, WaitlistEntry, CareerMazeEvent } from '@/models/types';
-
-const BLOB_PATHNAME = 'career-maze-data.json';
 
 export interface AppData {
   events: CareerMazeEvent[];
@@ -12,62 +11,119 @@ export interface AppData {
   waitlistEntries: WaitlistEntry[];
 }
 
-// Cache the blob URL after first successful save/load
-let knownBlobUrl: string | null = null;
+function getDb() {
+  const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  if (!url) throw new Error('POSTGRES_URL not set');
+  return neon(url);
+}
 
 export async function loadData(): Promise<AppData> {
   const empty: AppData = { events: [], sessions: [], bookings: [], waitlistEntries: [] };
   try {
-    // Try to find the blob
-    const { blobs } = await list({ limit: 100 });
-    const match = blobs.find(b => b.pathname === BLOB_PATHNAME);
-    
-    if (!match) {
-      console.log('[persistence] No data blob found among', blobs.length, 'blobs. Pathnames:', blobs.map(b => b.pathname));
-      return empty;
-    }
+    const sql = getDb();
 
-    knownBlobUrl = match.url;
-    console.log('[persistence] Found blob at:', match.url);
-    
-    // Add timestamp to bust CDN cache
-    const bustUrl = match.url + (match.url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-    const response = await fetch(bustUrl, { cache: 'no-store' });
-    if (!response.ok) {
-      console.error('[persistence] Fetch failed:', response.status);
-      return empty;
-    }
+    const [eventsRows, sessionsRows, bookingsRows, waitlistRows] = await Promise.all([
+      sql`SELECT * FROM events ORDER BY created_at`,
+      sql`SELECT * FROM sessions ORDER BY session_date, start_time`,
+      sql`SELECT * FROM bookings ORDER BY created_at`,
+      sql`SELECT * FROM waitlist ORDER BY created_at`,
+    ]);
 
-    const raw = await response.json();
-    const data: AppData = {
-      events: (raw.events || []).map((e: Record<string, unknown>) => ({ ...e, createdAt: new Date(e.createdAt as string) })),
-      sessions: (raw.sessions || []).map((s: Record<string, unknown>) => ({ ...s, createdAt: new Date(s.createdAt as string) })),
-      bookings: (raw.bookings || []).map((b: Record<string, unknown>) => ({ ...b, createdAt: new Date(b.createdAt as string), cancelledAt: b.cancelledAt ? new Date(b.cancelledAt as string) : null })),
-      waitlistEntries: (raw.waitlistEntries || []).map((w: Record<string, unknown>) => ({ ...w, createdAt: new Date(w.createdAt as string) })),
-    };
-    console.log(`[persistence] Loaded: ${data.events.length} events, ${data.sessions.length} sessions`);
-    return data;
+    const events: CareerMazeEvent[] = eventsRows.map((r) => ({
+      id: r.id, title: r.title, location: r.location || '',
+      timezone: r.timezone || 'Europe/London',
+      dates: r.dates || [], timeSlots: r.time_slots || [],
+      createdAt: new Date(r.created_at),
+    }));
+
+    const sessions: Session[] = sessionsRows.map((r) => ({
+      id: r.id, eventId: r.event_id, sessionDate: r.session_date,
+      startTime: r.start_time, bookingCount: r.booking_count,
+      slotStatus: r.slot_status as Session['slotStatus'],
+      createdAt: new Date(r.created_at),
+    }));
+
+    const bookings: Booking[] = bookingsRows.map((r) => ({
+      id: r.id, sessionId: r.session_id, name: r.name, email: r.email,
+      role: r.role, pf: r.pf, status: r.status as Booking['status'],
+      referenceCode: r.reference_code, createdAt: new Date(r.created_at),
+      cancelledAt: r.cancelled_at ? new Date(r.cancelled_at) : null,
+    }));
+
+    const waitlistEntries: WaitlistEntry[] = waitlistRows.map((r) => ({
+      id: r.id, sessionId: r.session_id, name: r.name, email: r.email,
+      role: r.role, pf: r.pf, createdAt: new Date(r.created_at),
+    }));
+
+    return { events, sessions, bookings, waitlistEntries };
   } catch (err) {
-    console.error('[persistence] Load error:', err);
+    console.error('[db] Load error:', err);
     return empty;
   }
 }
 
-export async function saveData(data: AppData): Promise<void> {
-  try {
-    // Delete old blob first if we know its URL (to avoid duplicates)
-    if (knownBlobUrl) {
-      try { await del(knownBlobUrl); } catch { /* ignore delete errors */ }
-    }
-    
-    console.log(`[persistence] Saving: ${data.events.length} events, ${data.sessions.length} sessions`);
-    const blob = await put(BLOB_PATHNAME, JSON.stringify(data), {
-      access: 'public',
-      addRandomSuffix: false,
-    });
-    knownBlobUrl = blob.url;
-    console.log('[persistence] Saved to:', blob.url);
-  } catch (err) {
-    console.error('[persistence] Save error:', err);
+// ─── Individual save operations (called after mutations) ─────────────────────
+
+export async function saveEvent(event: CareerMazeEvent) {
+  const sql = getDb();
+  await sql`INSERT INTO events (id, title, location, timezone, dates, time_slots, created_at)
+    VALUES (${event.id}, ${event.title}, ${event.location}, ${event.timezone}, ${JSON.stringify(event.dates)}, ${JSON.stringify(event.timeSlots)}, ${event.createdAt.toISOString()})
+    ON CONFLICT (id) DO UPDATE SET title = ${event.title}, location = ${event.location}, timezone = ${event.timezone}, dates = ${JSON.stringify(event.dates)}, time_slots = ${JSON.stringify(event.timeSlots)}`;
+}
+
+export async function saveSession(session: Session) {
+  const sql = getDb();
+  await sql`INSERT INTO sessions (id, event_id, session_date, start_time, booking_count, slot_status, created_at)
+    VALUES (${session.id}, ${session.eventId}, ${session.sessionDate}, ${session.startTime}, ${session.bookingCount}, ${session.slotStatus}, ${session.createdAt.toISOString()})
+    ON CONFLICT (id) DO UPDATE SET booking_count = ${session.bookingCount}, slot_status = ${session.slotStatus}`;
+}
+
+export async function saveSessions(sessions: Session[]) {
+  if (sessions.length === 0) return;
+  const sql = getDb();
+  for (const s of sessions) {
+    await sql`INSERT INTO sessions (id, event_id, session_date, start_time, booking_count, slot_status, created_at)
+      VALUES (${s.id}, ${s.eventId}, ${s.sessionDate}, ${s.startTime}, ${s.bookingCount}, ${s.slotStatus}, ${s.createdAt.toISOString()})
+      ON CONFLICT (id) DO UPDATE SET booking_count = ${s.bookingCount}, slot_status = ${s.slotStatus}`;
   }
+}
+
+export async function saveBooking(booking: Booking) {
+  const sql = getDb();
+  await sql`INSERT INTO bookings (id, session_id, name, email, role, pf, status, reference_code, created_at, cancelled_at)
+    VALUES (${booking.id}, ${booking.sessionId}, ${booking.name}, ${booking.email}, ${booking.role}, ${booking.pf}, ${booking.status}, ${booking.referenceCode}, ${booking.createdAt.toISOString()}, ${booking.cancelledAt?.toISOString() || null})
+    ON CONFLICT (id) DO UPDATE SET status = ${booking.status}, cancelled_at = ${booking.cancelledAt?.toISOString() || null}, name = ${booking.name}, email = ${booking.email}`;
+}
+
+export async function saveWaitlistEntry(entry: WaitlistEntry) {
+  const sql = getDb();
+  await sql`INSERT INTO waitlist (id, session_id, name, email, role, pf, created_at)
+    VALUES (${entry.id}, ${entry.sessionId}, ${entry.name}, ${entry.email}, ${entry.role}, ${entry.pf}, ${entry.createdAt.toISOString()})
+    ON CONFLICT (id) DO NOTHING`;
+}
+
+export async function deleteWaitlistEntry(id: string) {
+  const sql = getDb();
+  await sql`DELETE FROM waitlist WHERE id = ${id}`;
+}
+
+export async function deleteEventFromDb(eventId: string) {
+  const sql = getDb();
+  await sql`DELETE FROM waitlist WHERE session_id IN (SELECT id FROM sessions WHERE event_id = ${eventId})`;
+  await sql`DELETE FROM bookings WHERE session_id IN (SELECT id FROM sessions WHERE event_id = ${eventId})`;
+  await sql`DELETE FROM sessions WHERE event_id = ${eventId}`;
+  await sql`DELETE FROM events WHERE id = ${eventId}`;
+}
+
+export async function deleteSessionsFromDb(sessionIds: string[]) {
+  if (sessionIds.length === 0) return;
+  const sql = getDb();
+  for (const id of sessionIds) {
+    await sql`DELETE FROM sessions WHERE id = ${id}`;
+  }
+}
+
+// Legacy saveData — kept for compatibility but now saves to Postgres
+export async function saveData(data: AppData): Promise<void> {
+  // No-op — individual operations handle persistence now
 }

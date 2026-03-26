@@ -1,45 +1,43 @@
-// Central data manager — bridges in-memory stores with Vercel Blob persistence.
-// Call ensureLoaded() at the start of any API route, and persist() after mutations.
+// Central data manager — bridges in-memory stores with Postgres persistence.
+// Call ensureLoaded() at the start of any API route.
+// Individual persist functions are called after mutations.
 
-import { loadData, saveData } from './persistence';
+import { loadData, saveEvent, saveSessions, saveSession, saveBooking, saveWaitlistEntry, deleteWaitlistEntry, deleteEventFromDb, deleteSessionsFromDb } from './persistence';
+import { initDb } from './db';
 import type { Session, Booking, WaitlistEntry, CareerMazeEvent } from '@/models/types';
-
-// ─── In-memory stores ────────────────────────────────────────────────────────
 
 let events: CareerMazeEvent[] = [];
 let sessions: Session[] = [];
 let bookings: Booking[] = [];
 let waitlistEntries: WaitlistEntry[] = [];
-let loadedAt = 0; // timestamp of last load
+let dbInitialized = false;
 
-const isVercel = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+const isVercel = () => !!(process.env.POSTGRES_URL || process.env.DATABASE_URL);
 
-/**
- * Load data from blob storage into memory.
- * Always reloads fresh on every API request to ensure consistency.
- */
 export async function ensureLoaded(): Promise<void> {
   if (!isVercel()) return;
-
+  if (!dbInitialized) { await initDb(); dbInitialized = true; }
   const data = await loadData();
   events = data.events;
   sessions = data.sessions;
   bookings = data.bookings;
   waitlistEntries = data.waitlistEntries;
-  loadedAt = Date.now();
 }
 
-/**
- * Save current in-memory state to blob storage.
- */
-export async function persist(): Promise<void> {
-  if (!isVercel()) return;
-  await saveData({ events, sessions, bookings, waitlistEntries });
-  loadedAt = Date.now(); // Mark as fresh after save
-}
+// persist() is now a no-op — individual operations save directly to Postgres
+export async function persist(): Promise<void> {}
+
+// ─── Persist helpers (called by services after mutations) ────────────────────
+export async function persistEvent(event: CareerMazeEvent) { if (isVercel()) await saveEvent(event); }
+export async function persistSessions(s: Session[]) { if (isVercel()) await saveSessions(s); }
+export async function persistSession(s: Session) { if (isVercel()) await saveSession(s); }
+export async function persistBooking(b: Booking) { if (isVercel()) await saveBooking(b); }
+export async function persistWaitlistEntry(w: WaitlistEntry) { if (isVercel()) await saveWaitlistEntry(w); }
+export async function persistDeleteWaitlist(id: string) { if (isVercel()) await deleteWaitlistEntry(id); }
+export async function persistDeleteEvent(eventId: string) { if (isVercel()) await deleteEventFromDb(eventId); }
+export async function persistDeleteSessions(ids: string[]) { if (isVercel()) await deleteSessionsFromDb(ids); }
 
 // ─── Accessors ───────────────────────────────────────────────────────────────
-
 export function getEventsStore(): CareerMazeEvent[] { return events; }
 export function getSessionsStore(): Session[] { return sessions; }
 export function getBookingsStore(): Booking[] { return bookings; }

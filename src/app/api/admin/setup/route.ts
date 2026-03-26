@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createEvent, getEvents } from '@/services/sessionService';
-import { ensureLoaded, persist } from '@/lib/dataManager';
+import { ensureLoaded, persistEvent, persistSessions } from '@/lib/dataManager';
 import { noCacheHeaders } from '@/lib/apiHeaders';
 
 export async function GET() {
@@ -20,7 +20,10 @@ export async function POST(request: NextRequest) {
   if (!timeSlots || !Array.isArray(timeSlots) || timeSlots.length === 0) return NextResponse.json({ error: 'At least one time slot is required' }, { status: 400 });
 
   const { event, sessions } = createEvent(title.trim(), dates, timeSlots, (location || '').trim(), (timezone || 'Europe/London').trim());
-  await persist();
 
-  return NextResponse.json({ message: 'Event created successfully', event, totalSessions: sessions.length }, { status: 201 });
+  // Persist to Postgres
+  await persistEvent(event);
+  await persistSessions(sessions);
+
+  return NextResponse.json({ message: 'Event created successfully', event, totalSessions: sessions.length }, { status: 201, headers: noCacheHeaders });
 }

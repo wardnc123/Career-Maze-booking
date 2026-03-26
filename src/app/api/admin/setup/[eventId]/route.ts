@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEvent, updateEvent, deleteEvent } from '@/services/sessionService';
-import { ensureLoaded, persist } from '@/lib/dataManager';
+import { ensureLoaded, persistEvent, persistSessions, persistDeleteEvent, persistDeleteSessions } from '@/lib/dataManager';
+import { noCacheHeaders } from '@/lib/apiHeaders';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
   await ensureLoaded();
   const { eventId } = await params;
   const event = getEvent(eventId);
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-  return NextResponse.json(event);
+  return NextResponse.json(event, { headers: noCacheHeaders });
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -25,8 +26,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const result = updateEvent(eventId, { title: title?.trim(), location: location !== undefined ? location.trim() : undefined, timezone: timezone !== undefined ? timezone.trim() : undefined, dates, timeSlots });
   if (!result) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  await persist();
-  return NextResponse.json({ message: 'Event updated', event: result.event, sessionsAdded: result.sessionsAdded, sessionsRemoved: result.sessionsRemoved });
+  // Persist changes to Postgres
+  await persistEvent(result.event);
+  // Save new sessions and delete removed ones
+  const { getSessions } = await import('@/services/sessionService');
+  const eventSessions = getSessions({ eventId });
+  await persistSessions(eventSessions);
+
+  return NextResponse.json({ message: 'Event updated', event: result.event, sessionsAdded: result.sessionsAdded, sessionsRemoved: result.sessionsRemoved }, { headers: noCacheHeaders });
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -34,6 +41,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const { eventId } = await params;
   const deleted = deleteEvent(eventId);
   if (!deleted) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-  await persist();
-  return NextResponse.json({ message: 'Event deleted' });
+  await persistDeleteEvent(eventId);
+  return NextResponse.json({ message: 'Event deleted' }, { headers: noCacheHeaders });
 }
