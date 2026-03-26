@@ -1,0 +1,66 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getEvent, updateEvent } from '@/services/sessionService';
+
+/**
+ * GET /api/admin/setup/:eventId
+ * Returns a single event by ID.
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const { eventId } = await params;
+  const event = getEvent(eventId);
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+  return NextResponse.json(event);
+}
+
+/**
+ * PUT /api/admin/setup/:eventId
+ * Updates an event's title, dates, and/or time slots.
+ * Body: { title?: string, dates?: string[], timeSlots?: string[] }
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const { eventId } = await params;
+
+  let body: { title?: string; dates?: string[]; timeSlots?: string[] };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const { title, dates, timeSlots } = body;
+
+  if (title !== undefined && (!title || typeof title !== 'string' || !title.trim())) {
+    return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
+  }
+  if (dates !== undefined && (!Array.isArray(dates) || dates.length === 0)) {
+    return NextResponse.json({ error: 'At least one date is required' }, { status: 400 });
+  }
+  if (timeSlots !== undefined && (!Array.isArray(timeSlots) || timeSlots.length === 0)) {
+    return NextResponse.json({ error: 'At least one time slot is required' }, { status: 400 });
+  }
+
+  const result = updateEvent(eventId, {
+    title: title?.trim(),
+    dates,
+    timeSlots,
+  });
+
+  if (!result) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    message: 'Event updated successfully',
+    event: result.event,
+    sessionsAdded: result.sessionsAdded,
+    sessionsRemoved: result.sessionsRemoved,
+  });
+}

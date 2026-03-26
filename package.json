@@ -1,0 +1,41 @@
+{
+  "name": "career-maze-booking",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest --run"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "career-maze-booking": "file:",
+    "ics": "^3.8.1",
+    "next": "^15.1.0",
+    "nodemailer": "^6.9.16",
+    "pg": "^8.13.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "uuid": "^11.0.3"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^22.10.0",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/uuid": "^10.0.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.1.0",
+    "fast-check": "^3.23.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
