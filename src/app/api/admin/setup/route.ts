@@ -22,8 +22,13 @@ export async function POST(request: NextRequest) {
   const { event, sessions } = createEvent(title.trim(), dates, timeSlots, (location || '').trim(), (timezone || 'Europe/London').trim());
 
   // Persist to Postgres
-  await persistEvent(event);
-  await persistSessions(sessions);
+  try {
+    await persistEvent(event);
+    await persistSessions(sessions);
+  } catch (err) {
+    console.error('[setup] Persist error:', err);
+    return NextResponse.json({ error: 'Failed to save event to database', detail: String(err) }, { status: 500, headers: noCacheHeaders });
+  }
 
   return NextResponse.json({ message: 'Event created successfully', event, totalSessions: sessions.length }, { status: 201, headers: noCacheHeaders });
 }

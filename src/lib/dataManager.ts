@@ -28,8 +28,15 @@ export async function ensureLoaded(): Promise<void> {
 export async function persist(): Promise<void> {}
 
 // ─── Persist helpers (called by services after mutations) ────────────────────
-export async function persistEvent(event: CareerMazeEvent) { if (hasDb()) await saveEvent(event); }
-export async function persistSessions(s: Session[]) { if (hasDb()) await saveSessions(s); }
+export async function persistEvent(event: CareerMazeEvent) {
+  const db = hasDb();
+  console.log('[dataManager] persistEvent called, hasDb:', db, 'event:', event.id, event.title);
+  if (db) await saveEvent(event);
+}
+export async function persistSessions(s: Session[]) {
+  console.log('[dataManager] persistSessions called, count:', s.length, 'hasDb:', hasDb());
+  if (hasDb()) await saveSessions(s);
+}
 export async function persistSession(s: Session) { if (hasDb()) await saveSession(s); }
 export async function persistBooking(b: Booking) { if (hasDb()) await saveBooking(b); }
 export async function persistWaitlistEntry(w: WaitlistEntry) { if (hasDb()) await saveWaitlistEntry(w); }
