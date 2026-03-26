@@ -2,7 +2,7 @@
 // Admin authentication with bcrypt password hashing and session management.
 
 import { v4 as uuidv4 } from 'uuid';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import type { Admin, AdminSession } from '@/models/types';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
