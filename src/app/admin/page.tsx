@@ -4,11 +4,8 @@ import { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import type { Session, CareerMazeEvent } from '@/models/types';
 
-const BST_OFFSET_HOURS = 1;
-
-function utcToLondon(utcTime: string): string {
-  const [h, m] = utcTime.split(':').map(Number);
-  return `${String(h + BST_OFFSET_HOURS).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+function formatTime(time: string): string {
+  return time.slice(0, 5);
 }
 
 function formatDateLabel(iso: string): string {
@@ -193,7 +190,7 @@ export default function AdminOverviewPage() {
                       const event = events.find((e) => e.id === s.eventId);
                       return (
                         <tr key={s.id} className={`border-b border-gray-100 last:border-0 ${getRowColor(s.bookingCount)}`}>
-                          <td className="px-3 py-2 font-medium text-gray-900">{utcToLondon(s.startTime)}</td>
+                          <td className="px-3 py-2 font-medium text-gray-900">{formatTime(s.startTime)}</td>
                           {events.length >= 1 && <td className="px-3 py-2 text-gray-600 text-xs">{event?.title ?? '—'}</td>}
                           <td className="px-3 py-2 text-gray-700">{s.bookingCount}/3</td>
                           <td className="px-3 py-2"><span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${badge.bg}`}>{badge.label}</span></td>

@@ -4,14 +4,9 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import type { Session, SlotStatus, CareerMazeEvent } from '@/models/types';
 
-// BST offset: Europe/London in August is UTC+1
-const BST_OFFSET_HOURS = 1;
-
-/** Convert UTC time string (HH:MM:SS) to London local time (HH:MM) */
-function utcToLondon(utcTime: string): string {
-  const [h, m] = utcTime.split(':').map(Number);
-  const londonHour = h + BST_OFFSET_HOURS;
-  return `${String(londonHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+/** Format time string (HH:MM:SS or HH:MM) to display format (HH:MM) */
+function formatTime(time: string): string {
+  return time.slice(0, 5);
 }
 
 /** Date range Aug 3–22, 2026 */
@@ -147,7 +142,7 @@ export default function BookingPage() {
     const afternoonSlots: Session[] = [];
 
     for (const s of daySessions) {
-      const londonTime = utcToLondon(s.startTime);
+      const londonTime = formatTime(s.startTime);
       const hour = parseInt(londonTime.split(':')[0], 10);
       if (hour < 13) {
         morningSlots.push(s);
@@ -295,7 +290,7 @@ function SessionBlock({
       <h2 className="text-lg font-semibold text-gray-800 mb-3">{title}</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 gap-2 sm:gap-3">
         {sessions.map((session) => {
-          const londonTime = utcToLondon(session.startTime);
+          const londonTime = formatTime(session.startTime);
           const style = STATUS_COLORS[session.slotStatus];
           return (
             <button

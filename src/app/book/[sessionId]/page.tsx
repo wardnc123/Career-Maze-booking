@@ -3,12 +3,8 @@
 import { useEffect, useState, FormEvent } from 'react';
 import type { Session, Booking, WaitlistEntry } from '@/models/types';
 
-const BST_OFFSET_HOURS = 1;
-
-function utcToLondon(utcTime: string): string {
-  const [h, m] = utcTime.split(':').map(Number);
-  const londonHour = h + BST_OFFSET_HOURS;
-  return `${String(londonHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+function formatTime(time: string): string {
+  return time.slice(0, 5);
 }
 
 function formatDate(iso: string): string {
@@ -218,7 +214,7 @@ export default function BookSessionPage({
             <p className="text-sm text-gray-500">Date</p>
             <p className="font-medium text-gray-900">{formatDate(session.sessionDate)}</p>
             <p className="text-sm text-gray-500 mt-2">Time</p>
-            <p className="font-medium text-gray-900">{utcToLondon(session.startTime)} (Europe/London)</p>
+            <p className="font-medium text-gray-900">{formatTime(session.startTime)} (Europe/London)</p>
             <p className="text-sm text-gray-500 mt-2">Reference Code</p>
             <p className="font-mono font-bold text-gray-900">{pageState.booking.referenceCode}</p>
             {eventLocation && (
@@ -259,7 +255,7 @@ export default function BookSessionPage({
             <p className="text-sm text-gray-500">Date</p>
             <p className="font-medium text-gray-900">{formatDate(session.sessionDate)}</p>
             <p className="text-sm text-gray-500 mt-2">Time</p>
-            <p className="font-medium text-gray-900">{utcToLondon(session.startTime)} (Europe/London)</p>
+            <p className="font-medium text-gray-900">{formatTime(session.startTime)} (Europe/London)</p>
           </div>
           <a href="/" className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
             ← Back to sessions
@@ -338,7 +334,7 @@ export default function BookSessionPage({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h1 className="text-lg font-bold text-gray-900">Book Session</h1>
             <p className="text-gray-700 mt-1">
-              {formatDate(session.sessionDate)} at {utcToLondon(session.startTime)} (Europe/London)
+              {formatDate(session.sessionDate)} at {formatTime(session.startTime)} (Europe/London)
             </p>
             <p className="text-sm text-gray-500 mt-1">
               {session.bookingCount}/3 booked · {session.slotStatus}

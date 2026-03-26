@@ -7,11 +7,8 @@ import type { Session, Booking } from '@/models/types';
 // BST offset: Europe/London in August is UTC+1
 const BST_OFFSET_HOURS = 1;
 
-/** Convert UTC time string (HH:MM:SS) to London local time (HH:MM) */
-function utcToLondon(utcTime: string): string {
-  const [h, m] = utcTime.split(':').map(Number);
-  const londonHour = h + BST_OFFSET_HOURS;
-  return `${String(londonHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+function formatTime(time: string): string {
+  return time.slice(0, 5);
 }
 
 /** Date range Aug 3–22, 2026 */
@@ -395,7 +392,7 @@ export default function AdminDashboardPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 gap-2 sm:gap-3">
               {filteredSessions.map((session) => {
-                const londonTime = utcToLondon(session.startTime);
+                const londonTime = formatTime(session.startTime);
                 const indicator = getIndicatorColor(session.bookingCount);
                 return (
                   <div
@@ -466,7 +463,7 @@ function SearchResultsPanel({ results, sessions }: { results: Booking[]; session
           {results.map((b) => {
             const session = sessionMap.get(b.sessionId);
             const sessionLabel = session
-              ? `${formatDateLabel(session.sessionDate)} ${utcToLondon(session.startTime)}`
+              ? `${formatDateLabel(session.sessionDate)} ${formatTime(session.startTime)}`
               : b.sessionId;
             return (
               <tr key={b.id} className="border-b border-gray-100 last:border-0">
