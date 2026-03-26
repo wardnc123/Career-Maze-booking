@@ -64,11 +64,12 @@ let initialized = false;
  * Create a new event with custom dates, time slots, and title.
  * Returns the created event and its sessions.
  */
-export function createEvent(title: string, dates: string[], timeSlots: string[]): { event: CareerMazeEvent; sessions: Session[] } {
+export function createEvent(title: string, dates: string[], timeSlots: string[], location: string = ''): { event: CareerMazeEvent; sessions: Session[] } {
   const eventId = uuidv4();
   const event: CareerMazeEvent = {
     id: eventId,
     title,
+    location,
     dates: [...dates].sort(),
     timeSlots: [...timeSlots].sort(),
     createdAt: new Date(),
@@ -116,13 +117,14 @@ export function getEvent(eventId: string): CareerMazeEvent | null {
  */
 export function updateEvent(
   eventId: string,
-  updates: { title?: string; dates?: string[]; timeSlots?: string[] }
+  updates: { title?: string; location?: string; dates?: string[]; timeSlots?: string[] }
 ): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number } | null {
   ensureInitialized();
   const event = events.find((e) => e.id === eventId);
   if (!event) return null;
 
   if (updates.title) event.title = updates.title;
+  if (updates.location !== undefined) event.location = updates.location;
 
   let sessionsAdded = 0;
   let sessionsRemoved = 0;
@@ -191,6 +193,7 @@ export function generateSessions(): Session[] {
   const event: CareerMazeEvent = {
     id: eventId,
     title: 'Career Maze August 2026',
+    location: '',
     dates: [...dates],
     timeSlots: [...ALL_SLOTS_LONDON],
     createdAt: new Date(),

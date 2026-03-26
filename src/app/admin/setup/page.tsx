@@ -30,6 +30,7 @@ function getDatesInRange(start: string, end: string): string[] {
 
 export default function AdminSetupPage() {
   const [title, setTitle] = useState('');
+  const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
@@ -78,7 +79,7 @@ export default function AdminSetupPage() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort() }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort() }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -104,7 +105,7 @@ export default function AdminSetupPage() {
           <p className="text-gray-600 mb-6">{resultMessage}</p>
           <div className="flex gap-3 justify-center flex-wrap">
             <a href="/admin" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
-            <button onClick={() => { setPageState('form'); setTitle(''); setStartDate(''); setEndDate(''); clearSlots(); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
+            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setStartDate(''); setEndDate(''); clearSlots(); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
           </div>
         </div>
       </main>
@@ -126,9 +127,15 @@ export default function AdminSetupPage() {
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Career Maze London - August 2026" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </section>
 
+        {/* Location */}
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">2. Location</h3>
+          <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Building 1, Floor 3, Room 301, Amazon LDN" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </section>
+
         {/* Dates */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">2. Choose dates</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">3. Choose dates</h3>
           <div className="flex flex-wrap gap-4 items-end">
             <div>
               <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
@@ -144,7 +151,7 @@ export default function AdminSetupPage() {
 
         {/* Time slots */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">3. Choose time slots</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">4. Choose time slots</h3>
           <div className="flex gap-2 mb-3">
             <button onClick={selectMorning} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Morning</button>
             <button onClick={selectAfternoon} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Afternoon</button>
@@ -163,6 +170,7 @@ export default function AdminSetupPage() {
           <h3 className="text-lg font-semibold text-gray-800 mb-2">Summary</h3>
           <div className="text-sm text-gray-700 space-y-1">
             <p>Event: {title || '—'}</p>
+            <p>Location: {location || '—'}</p>
             <p>Days: {previewDates.length || '—'}</p>
             <p>Slots per day: {selectedSlots.size || '—'}</p>
             <p>Total sessions: {previewDates.length * selectedSlots.size || '—'}</p>

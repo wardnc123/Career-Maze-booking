@@ -16,14 +16,14 @@ export async function GET() {
  * Body: { title: string, dates: string[], timeSlots: string[] }
  */
 export async function POST(request: NextRequest) {
-  let body: { title?: string; dates?: string[]; timeSlots?: string[] };
+  let body: { title?: string; location?: string; dates?: string[]; timeSlots?: string[] };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { title, dates, timeSlots } = body;
+  const { title, location, dates, timeSlots } = body;
 
   if (!title || typeof title !== 'string' || !title.trim()) {
     return NextResponse.json({ error: 'Event title is required' }, { status: 400 });
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'At least one time slot is required' }, { status: 400 });
   }
 
-  const { event, sessions } = createEvent(title.trim(), dates, timeSlots);
+  const { event, sessions } = createEvent(title.trim(), dates, timeSlots, (location || '').trim());
 
   return NextResponse.json({
     message: 'Event created successfully',

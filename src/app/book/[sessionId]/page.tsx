@@ -39,6 +39,7 @@ export default function BookSessionPage({
 }) {
   const [sessionId, setSessionId] = useState<string>('');
   const [session, setSession] = useState<Session | null>(null);
+  const [eventLocation, setEventLocation] = useState<string>('');
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
 
   // Form fields
@@ -66,6 +67,14 @@ export default function BookSessionPage({
         if (!cancelled) {
           setSession(data);
           setPageState({ kind: 'form' });
+          // Fetch event location
+          fetch('/api/admin/setup')
+            .then((r) => r.json())
+            .then((events) => {
+              const event = events.find((e: { id: string }) => e.id === data.eventId);
+              if (event?.location) setEventLocation(event.location);
+            })
+            .catch(() => {});
         }
       } catch {
         if (!cancelled) setPageState({ kind: 'not-found' });
@@ -212,6 +221,12 @@ export default function BookSessionPage({
             <p className="font-medium text-gray-900">{utcToLondon(session.startTime)} (Europe/London)</p>
             <p className="text-sm text-gray-500 mt-2">Reference Code</p>
             <p className="font-mono font-bold text-gray-900">{pageState.booking.referenceCode}</p>
+            {eventLocation && (
+              <>
+                <p className="text-sm text-gray-500 mt-2">Location</p>
+                <p className="font-medium text-gray-900">{eventLocation}</p>
+              </>
+            )}
           </div>
           <div className="flex flex-col gap-3">
             <a

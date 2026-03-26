@@ -16,7 +16,7 @@ const SESSION_DURATION_HOURS = 3;
  *
  * Requirements: 6.1, 6.3, 6.4, 6.5
  */
-export function generateIcs(booking: Booking, session: Session, baseUrl?: string): string {
+export function generateIcs(booking: Booking, session: Session, baseUrl?: string, location?: string): string {
   const [year, month, day] = session.sessionDate.split('-').map(Number);
   const [hours, minutes] = session.startTime.split(':').map(Number);
 
@@ -31,7 +31,8 @@ export function generateIcs(booking: Booking, session: Session, baseUrl?: string
     startOutputType: 'local',
     duration: { hours: SESSION_DURATION_HOURS },
     uid: booking.id,
-    description: `Booking reference: ${booking.referenceCode}\nAttendee: ${booking.name}\nRole: ${booking.role}\nPF: ${booking.pf}\n\nNeed to cancel? Visit:\n${cancelUrl}`,
+    location: location || undefined,
+    description: `Booking reference: ${booking.referenceCode}\nAttendee: ${booking.name}\nRole: ${booking.role}\nPF: ${booking.pf}${location ? `\nLocation: ${location}` : ''}\n\nNeed to cancel? Visit:\n${cancelUrl}`,
     status: 'CONFIRMED',
   });
 

@@ -114,6 +114,7 @@ export interface DailyStats {
 export interface CareerMazeEvent {
   id: string;
   title: string;
+  location: string;           // Site/building location
   dates: string[];            // ISO date strings
   timeSlots: string[];        // London time strings (HH:MM)
   createdAt: Date;

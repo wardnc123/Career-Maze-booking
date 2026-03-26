@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllBookings } from '@/services/bookingService';
-import { getSession } from '@/services/sessionService';
+import { getSession, getEvent } from '@/services/sessionService';
 import { generateIcs } from '@/services/calendarService';
 
 /**
  * GET /api/bookings/:id/calendar
- * Returns an .ics calendar file for the given booking.
+ * Returns an .ics calendar file for the given booking, including event location.
  */
 export async function GET(
   _request: NextRequest,
@@ -23,7 +23,10 @@ export async function GET(
     return NextResponse.json({ error: 'Session not found' }, { status: 404 });
   }
 
-  const ics = generateIcs(booking, session);
+  const event = getEvent(session.eventId);
+  const location = event?.location || '';
+
+  const ics = generateIcs(booking, session, undefined, location);
 
   return new NextResponse(ics, {
     status: 200,

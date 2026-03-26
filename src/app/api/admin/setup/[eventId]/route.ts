@@ -28,14 +28,14 @@ export async function PUT(
 ) {
   const { eventId } = await params;
 
-  let body: { title?: string; dates?: string[]; timeSlots?: string[] };
+  let body: { title?: string; location?: string; dates?: string[]; timeSlots?: string[] };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { title, dates, timeSlots } = body;
+  const { title, location, dates, timeSlots } = body;
 
   if (title !== undefined && (!title || typeof title !== 'string' || !title.trim())) {
     return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
@@ -49,6 +49,7 @@ export async function PUT(
 
   const result = updateEvent(eventId, {
     title: title?.trim(),
+    location: location !== undefined ? location.trim() : undefined,
     dates,
     timeSlots,
   });
