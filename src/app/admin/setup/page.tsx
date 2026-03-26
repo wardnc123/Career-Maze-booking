@@ -22,7 +22,10 @@ function getDatesInRange(start: string, end: string): string[] {
   const current = new Date(start + 'T00:00:00Z');
   const endDate = new Date(end + 'T00:00:00Z');
   while (current <= endDate) {
-    dates.push(current.toISOString().slice(0, 10));
+    const day = current.getUTCDay();
+    if (day !== 0 && day !== 6) { // Skip Sunday (0) and Saturday (6)
+      dates.push(current.toISOString().slice(0, 10));
+    }
     current.setUTCDate(current.getUTCDate() + 1);
   }
   return dates;
