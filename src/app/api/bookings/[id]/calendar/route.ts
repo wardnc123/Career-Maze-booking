@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllBookings } from '@/services/bookingService';
 import { getSession, getEvent } from '@/services/sessionService';
 import { generateIcs } from '@/services/calendarService';
+import { ensureLoaded } from '@/lib/dataManager';
 
-/**
- * GET /api/bookings/:id/calendar
- * Returns an .ics calendar file for the given booking, including event location.
- */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  await ensureLoaded();
   const { id } = await params;
 
   const booking = getAllBookings().find((b) => b.id === id);

@@ -1,46 +1,49 @@
 // Central data manager — bridges in-memory stores with Vercel Blob persistence.
 // Call ensureLoaded() at the start of any API route, and persist() after mutations.
 
-import { loadData, saveData, type AppData } from './persistence';
+import { loadData, saveData } from './persistence';
 import type { Session, Booking, WaitlistEntry, CareerMazeEvent } from '@/models/types';
 
-// ─── In-memory stores (the source of truth during a request) ─────────────────
+// ─── In-memory stores ────────────────────────────────────────────────────────
 
 let events: CareerMazeEvent[] = [];
 let sessions: Session[] = [];
 let bookings: Booking[] = [];
 let waitlistEntries: WaitlistEntry[] = [];
-let loaded = false;
+let loadedAt = 0; // timestamp of last load
+
+const isVercel = () => !!process.env.BLOB_READ_WRITE_TOKEN;
 
 /**
- * Load data from blob storage into memory (if not already loaded).
+ * Load data from blob storage into memory.
+ * On Vercel: always reloads if more than 1 second since last load (handles cold starts and concurrent functions).
+ * Locally: no-op, uses in-memory only.
  */
 export async function ensureLoaded(): Promise<void> {
-  if (loaded) return;
-  const isVercel = !!process.env.BLOB_READ_WRITE_TOKEN;
-  if (!isVercel) {
-    // Running locally — just use in-memory, no persistence
-    loaded = true;
-    return;
-  }
+  if (!isVercel()) return;
+
+  const now = Date.now();
+  // Reload if never loaded or stale (>1s old)
+  if (loadedAt > 0 && (now - loadedAt) < 1000) return;
+
   const data = await loadData();
   events = data.events;
   sessions = data.sessions;
   bookings = data.bookings;
   waitlistEntries = data.waitlistEntries;
-  loaded = true;
+  loadedAt = now;
 }
 
 /**
  * Save current in-memory state to blob storage.
  */
 export async function persist(): Promise<void> {
-  const isVercel = !!process.env.BLOB_READ_WRITE_TOKEN;
-  if (!isVercel) return; // Skip persistence locally
+  if (!isVercel()) return;
   await saveData({ events, sessions, bookings, waitlistEntries });
+  loadedAt = Date.now(); // Mark as fresh after save
 }
 
-// ─── Accessors (used by services) ────────────────────────────────────────────
+// ─── Accessors ───────────────────────────────────────────────────────────────
 
 export function getEventsStore(): CareerMazeEvent[] { return events; }
 export function getSessionsStore(): Session[] { return sessions; }
