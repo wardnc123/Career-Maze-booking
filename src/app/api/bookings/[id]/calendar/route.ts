@@ -23,8 +23,9 @@ export async function GET(
 
   const event = getEvent(session.eventId);
   const location = event?.location || '';
+  const timezone = event?.timezone || 'Europe/London';
 
-  const ics = generateIcs(booking, session, undefined, location);
+  const ics = generateIcs(booking, session, undefined, location, timezone);
 
   return new NextResponse(ics, {
     status: 200,

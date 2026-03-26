@@ -16,9 +16,10 @@ const SESSION_DURATION_HOURS = 3;
  *
  * Requirements: 6.1, 6.3, 6.4, 6.5
  */
-export function generateIcs(booking: Booking, session: Session, baseUrl?: string, location?: string): string {
+export function generateIcs(booking: Booking, session: Session, baseUrl?: string, location?: string, timezone?: string): string {
   const [year, month, day] = session.sessionDate.split('-').map(Number);
   const [hours, minutes] = session.startTime.split(':').map(Number);
+  const tz = timezone || 'Europe/London';
 
   const cancelUrl = baseUrl
     ? `${baseUrl}/cancel/${booking.id}`
@@ -40,7 +41,7 @@ export function generateIcs(booking: Booking, session: Session, baseUrl?: string
     throw new Error(`Failed to generate ICS: ${error?.message ?? 'unknown error'}`);
   }
 
-  return injectTimezone(value);
+  return injectTimezone(value, tz);
 }
 
 /**
@@ -84,38 +85,37 @@ export function parseIcs(icsContent: string): CalendarEvent {
  * Inject a VTIMEZONE block for Europe/London and tag the VEVENT's DTSTART
  * with TZID=Europe/London.
  */
-function injectTimezone(icsContent: string): string {
+function injectTimezone(icsContent: string, timezone: string): string {
+  // For simplicity, inject a generic VTIMEZONE with the given TZID.
+  // Outlook and Google Calendar resolve the actual offset from the TZID name.
   const vtimezone = [
     'BEGIN:VTIMEZONE',
-    'TZID:Europe/London',
+    `TZID:${timezone}`,
     'BEGIN:STANDARD',
     'DTSTART:19701025T020000',
     'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
     'TZOFFSETFROM:+0100',
     'TZOFFSETTO:+0000',
-    'TZNAME:GMT',
+    `TZNAME:${timezone}`,
     'END:STANDARD',
     'BEGIN:DAYLIGHT',
     'DTSTART:19700329T010000',
     'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3',
     'TZOFFSETFROM:+0000',
     'TZOFFSETTO:+0100',
-    'TZNAME:BST',
+    `TZNAME:${timezone}`,
     'END:DAYLIGHT',
     'END:VTIMEZONE',
   ].join('\r\n');
 
-  // Insert VTIMEZONE before VEVENT
   let result = icsContent.replace(
     'BEGIN:VEVENT',
     `${vtimezone}\r\nBEGIN:VEVENT`
   );
 
-  // Tag the VEVENT's DTSTART with TZID. We target the DTSTART inside VEVENT
-  // by replacing only the occurrence after BEGIN:VEVENT.
   result = result.replace(
     /(BEGIN:VEVENT[\s\S]*?)DTSTART:(\d{8}T\d{6})/,
-    '$1DTSTART;TZID=Europe/London:$2'
+    `$1DTSTART;TZID=${timezone}:$2`
   );
 
   return result;

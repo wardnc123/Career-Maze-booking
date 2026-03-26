@@ -14,15 +14,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   await ensureLoaded();
   const { eventId } = await params;
 
-  let body: { title?: string; location?: string; dates?: string[]; timeSlots?: string[] };
+  let body: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[] };
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-  const { title, location, dates, timeSlots } = body;
+  const { title, location, timezone, dates, timeSlots } = body;
   if (title !== undefined && (!title || !title.trim())) return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
   if (dates !== undefined && (!Array.isArray(dates) || dates.length === 0)) return NextResponse.json({ error: 'At least one date is required' }, { status: 400 });
   if (timeSlots !== undefined && (!Array.isArray(timeSlots) || timeSlots.length === 0)) return NextResponse.json({ error: 'At least one time slot is required' }, { status: 400 });
 
-  const result = updateEvent(eventId, { title: title?.trim(), location: location !== undefined ? location.trim() : undefined, dates, timeSlots });
+  const result = updateEvent(eventId, { title: title?.trim(), location: location !== undefined ? location.trim() : undefined, timezone: timezone !== undefined ? timezone.trim() : undefined, dates, timeSlots });
   if (!result) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
   await persist();

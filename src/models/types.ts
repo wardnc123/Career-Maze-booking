@@ -115,7 +115,8 @@ export interface CareerMazeEvent {
   id: string;
   title: string;
   location: string;           // Site/building location
+  timezone: string;           // IANA timezone e.g. 'Europe/London', 'America/New_York'
   dates: string[];            // ISO date strings
-  timeSlots: string[];        // London time strings (HH:MM)
+  timeSlots: string[];        // Local time strings (HH:MM) in the event's timezone
   createdAt: Date;
 }

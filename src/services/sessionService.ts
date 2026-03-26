@@ -73,12 +73,13 @@ let initialized = false;
  * Create a new event with custom dates, time slots, and title.
  * Returns the created event and its sessions.
  */
-export function createEvent(title: string, dates: string[], timeSlots: string[], location: string = ''): { event: CareerMazeEvent; sessions: Session[] } {
+export function createEvent(title: string, dates: string[], timeSlots: string[], location: string = '', timezone: string = 'Europe/London'): { event: CareerMazeEvent; sessions: Session[] } {
   const eventId = uuidv4();
   const event: CareerMazeEvent = {
     id: eventId,
     title,
     location,
+    timezone,
     dates: [...dates].sort(),
     timeSlots: [...timeSlots].sort(),
     createdAt: new Date(),
@@ -87,10 +88,11 @@ export function createEvent(title: string, dates: string[], timeSlots: string[],
 
   const generated: Session[] = [];
   for (const date of dates) {
-    for (const londonTime of timeSlots) {
+    for (const localTime of timeSlots) {
       const session: Session = {
         id: uuidv4(), eventId, sessionDate: date,
-        startTime: londonToUtc(londonTime), bookingCount: 0,
+        startTime: localTime + ':00',  // Store as local time HH:MM:SS in event timezone
+        bookingCount: 0,
         slotStatus: 'Available' as SlotStatus, createdAt: new Date(),
       };
       generated.push(session);
@@ -117,13 +119,14 @@ export function getEvent(eventId: string): CareerMazeEvent | null {
  */
 export function updateEvent(
   eventId: string,
-  updates: { title?: string; location?: string; dates?: string[]; timeSlots?: string[] }
+  updates: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[] }
 ): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number } | null {
   const event = getEvents_().find((e) => e.id === eventId);
   if (!event) return null;
 
   if (updates.title) event.title = updates.title;
   if (updates.location !== undefined) event.location = updates.location;
+  if (updates.timezone !== undefined) event.timezone = updates.timezone;
 
   let sessionsAdded = 0;
   let sessionsRemoved = 0;
@@ -134,8 +137,8 @@ export function updateEvent(
   // Build set of desired (date, utcTime) combos
   const desiredCombos = new Set<string>();
   for (const date of newDates) {
-    for (const londonTime of newTimeSlots) {
-      desiredCombos.add(`${date}|${londonToUtc(londonTime)}`);
+    for (const localTime of newTimeSlots) {
+      desiredCombos.add(`${date}|${localTime}:00`);
     }
   }
 
@@ -162,12 +165,12 @@ export function updateEvent(
   // Add sessions for new combos that don't exist yet
   for (const combo of desiredCombos) {
     if (!existingCombos.has(combo)) {
-      const [date, utcTime] = combo.split('|');
+      const parts = combo.split('|');
       dmAddSession({
         id: uuidv4(),
         eventId,
-        sessionDate: date,
-        startTime: utcTime,
+        sessionDate: parts[0],
+        startTime: parts[1],
         bookingCount: 0,
         slotStatus: 'Available' as SlotStatus,
         createdAt: new Date(),

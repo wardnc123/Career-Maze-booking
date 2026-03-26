@@ -31,6 +31,7 @@ function getDatesInRange(start: string, end: string): string[] {
 export default function AdminSetupPage() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
+  const [timezone, setTimezone] = useState('Europe/London');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
@@ -79,7 +80,7 @@ export default function AdminSetupPage() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort() }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort() }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -105,7 +106,7 @@ export default function AdminSetupPage() {
           <p className="text-gray-600 mb-6">{resultMessage}</p>
           <div className="flex gap-3 justify-center flex-wrap">
             <a href="/admin" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
-            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setStartDate(''); setEndDate(''); clearSlots(); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
+            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
           </div>
         </div>
       </main>
@@ -133,9 +134,32 @@ export default function AdminSetupPage() {
           <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Building 1, Floor 3, Room 301, Amazon LDN" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </section>
 
+        {/* Timezone */}
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">3. Timezone</h3>
+          <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="w-full sm:w-auto border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="Europe/London">🇬🇧 UK (Europe/London)</option>
+            <option value="Europe/Berlin">🇩🇪 Germany (Europe/Berlin)</option>
+            <option value="Europe/Paris">🇫🇷 France (Europe/Paris)</option>
+            <option value="Europe/Madrid">🇪🇸 Spain (Europe/Madrid)</option>
+            <option value="Europe/Rome">🇮🇹 Italy (Europe/Rome)</option>
+            <option value="America/New_York">🇺🇸 US East (America/New_York)</option>
+            <option value="America/Chicago">🇺🇸 US Central (America/Chicago)</option>
+            <option value="America/Denver">🇺🇸 US Mountain (America/Denver)</option>
+            <option value="America/Los_Angeles">🇺🇸 US West (America/Los_Angeles)</option>
+            <option value="America/Sao_Paulo">🇧🇷 Brazil (America/Sao_Paulo)</option>
+            <option value="Asia/Dubai">🇦🇪 UAE (Asia/Dubai)</option>
+            <option value="Asia/Kolkata">🇮🇳 India (Asia/Kolkata)</option>
+            <option value="Asia/Singapore">🇸🇬 Singapore (Asia/Singapore)</option>
+            <option value="Asia/Tokyo">🇯🇵 Japan (Asia/Tokyo)</option>
+            <option value="Asia/Shanghai">🇨🇳 China (Asia/Shanghai)</option>
+            <option value="Australia/Sydney">🇦🇺 Australia (Australia/Sydney)</option>
+          </select>
+        </section>
+
         {/* Dates */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">3. Choose dates</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">4. Choose dates</h3>
           <div className="flex flex-wrap gap-4 items-end">
             <div>
               <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
@@ -151,7 +175,7 @@ export default function AdminSetupPage() {
 
         {/* Time slots */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">4. Choose time slots</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">5. Choose time slots</h3>
           <div className="flex gap-2 mb-3">
             <button onClick={selectMorning} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Morning</button>
             <button onClick={selectAfternoon} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Afternoon</button>
@@ -171,6 +195,7 @@ export default function AdminSetupPage() {
           <div className="text-sm text-gray-700 space-y-1">
             <p>Event: {title || '—'}</p>
             <p>Location: {location || '—'}</p>
+            <p>Timezone: {timezone}</p>
             <p>Days: {previewDates.length || '—'}</p>
             <p>Slots per day: {selectedSlots.size || '—'}</p>
             <p>Total sessions: {previewDates.length * selectedSlots.size || '—'}</p>
