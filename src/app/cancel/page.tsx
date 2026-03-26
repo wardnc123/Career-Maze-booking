@@ -19,7 +19,7 @@ export default function CancelPage() {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address.'); return; }
     setLoading(true); setError(''); setMessage('');
     try {
-      const res = await fetch(`/api/bookings/lookup?email=${encodeURIComponent(email.trim())}`);
+      const res = await fetch(`/api/bookings/lookup?email=${encodeURIComponent(email.trim())}`, { cache: 'no-store' });
       if (!res.ok) { setError('Failed to look up bookings.'); setLoading(false); return; }
       const data = await res.json();
       setBookings(data);

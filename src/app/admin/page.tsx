@@ -34,8 +34,8 @@ export default function AdminOverviewPage() {
   // Fetch events and sessions
   useEffect(() => {
     Promise.all([
-      fetch('/api/sessions').then((r) => r.json()),
-      fetch('/api/admin/setup').then((r) => r.json()),
+      fetch('/api/sessions', { cache: 'no-store' }).then((r) => r.json()),
+      fetch('/api/admin/setup', { cache: 'no-store' }).then((r) => r.json()),
     ]).then(([sessionsData, eventsData]) => {
       setAllSessions(sessionsData);
       setEvents(eventsData);

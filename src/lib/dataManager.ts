@@ -16,22 +16,17 @@ const isVercel = () => !!process.env.BLOB_READ_WRITE_TOKEN;
 
 /**
  * Load data from blob storage into memory.
- * On Vercel: always reloads if more than 1 second since last load (handles cold starts and concurrent functions).
- * Locally: no-op, uses in-memory only.
+ * Always reloads fresh on every API request to ensure consistency.
  */
 export async function ensureLoaded(): Promise<void> {
   if (!isVercel()) return;
-
-  const now = Date.now();
-  // Reload if never loaded or stale (>1s old)
-  if (loadedAt > 0 && (now - loadedAt) < 1000) return;
 
   const data = await loadData();
   events = data.events;
   sessions = data.sessions;
   bookings = data.bookings;
   waitlistEntries = data.waitlistEntries;
-  loadedAt = now;
+  loadedAt = Date.now();
 }
 
 /**

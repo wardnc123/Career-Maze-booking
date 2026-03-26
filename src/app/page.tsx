@@ -85,8 +85,8 @@ export default function BookingPage() {
     async function fetchData() {
       try {
         const [sessionsRes, eventsRes] = await Promise.all([
-          fetch('/api/sessions'),
-          fetch('/api/admin/setup'),
+          fetch('/api/sessions', { cache: 'no-store' }),
+          fetch('/api/admin/setup', { cache: 'no-store' }),
         ]);
         if (!sessionsRes.ok) throw new Error('Failed to load sessions');
         const [sessionsData, eventsData] = await Promise.all([sessionsRes.json(), eventsRes.json()]);

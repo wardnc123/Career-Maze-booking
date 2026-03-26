@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createEvent, getEvents } from '@/services/sessionService';
 import { ensureLoaded, persist } from '@/lib/dataManager';
+import { noCacheHeaders } from '@/lib/apiHeaders';
 
 export async function GET() {
   await ensureLoaded();
-  return NextResponse.json(getEvents());
+  return NextResponse.json(getEvents(), { headers: noCacheHeaders });
 }
 
 export async function POST(request: NextRequest) {

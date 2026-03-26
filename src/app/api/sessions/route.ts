@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessions } from '@/services/sessionService';
 import { ensureLoaded } from '@/lib/dataManager';
+import { noCacheHeaders } from '@/lib/apiHeaders';
 import type { SessionFilter, SlotStatus } from '@/models/types';
 
 export async function GET(request: NextRequest) {
@@ -16,5 +17,5 @@ export async function GET(request: NextRequest) {
   if (status) filters.status = status;
 
   const sessions = getSessions(Object.keys(filters).length > 0 ? filters : undefined);
-  return NextResponse.json(sessions);
+  return NextResponse.json(sessions, { headers: noCacheHeaders });
 }
