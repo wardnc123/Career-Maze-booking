@@ -269,6 +269,12 @@ export default function BookingPage() {
         {/* Session grid */}
         <SessionBlock title="Morning (9:00 – 12:00)" sessions={morning} onSlotClick={handleSlotClick} />
         <SessionBlock title="Afternoon (14:00 – 15:15)" sessions={afternoon} onSlotClick={handleSlotClick} />
+
+        {/* Cancel link */}
+        <div className="mt-8 pt-6 border-t border-gray-200 text-center">
+          <p className="text-sm text-gray-500 mb-2">Need to cancel an existing booking?</p>
+          <a href="/cancel" className="text-sm text-red-600 hover:underline font-medium">Cancel a Booking</a>
+        </div>
       </div>
     </main>
   );

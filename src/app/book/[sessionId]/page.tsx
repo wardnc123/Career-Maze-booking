@@ -216,7 +216,7 @@ export default function BookSessionPage({
       'BEGIN:VEVENT',
       `DTSTART:${dtStart}`, `DTEND:${dtEnd}`,
       `SUMMARY:Career Maze Session - ${booking.name}`,
-      `DESCRIPTION:Ref: ${booking.referenceCode}\\nAttendee: ${booking.name}\\nRole: ${booking.role}\\nPF: ${booking.pf}`,
+      `DESCRIPTION:Ref: ${booking.referenceCode}\\nAttendee: ${booking.name}\\nRole: ${booking.role}\\nPF: ${booking.pf}\\n\\nNeed to cancel? Visit:\\n${window.location.origin}/cancel`,
       loc ? `LOCATION:${loc}` : '',
       `UID:${booking.id}`,
       'STATUS:CONFIRMED',
@@ -262,6 +262,7 @@ export default function BookSessionPage({
             <a href="/" className="inline-block px-4 py-2 bg-[#1a1a2e] text-white rounded hover:bg-[#2a2a4e] transition-colors">
               ← Back to sessions
             </a>
+            <a href="/cancel" className="text-sm text-red-600 hover:underline">Need to cancel later?</a>
           </div>
         </div>
       </main>
