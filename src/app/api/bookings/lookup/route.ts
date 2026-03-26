@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const enriched = bookings.map(b => {
     const session = getSession(b.sessionId);
     const event = session ? getEvent(session.eventId) : null;
-    return { ...b, sessionDate: session?.sessionDate, startTime: session?.startTime, eventTitle: event?.title };
+    return { ...b, sessionDate: session?.sessionDate, startTime: session?.startTime, eventTitle: event?.title, eventLocation: event?.location };
   });
 
   return NextResponse.json(enriched, { headers: noCacheHeaders });

@@ -25,20 +25,26 @@ function getRowColor(count: number): string {
   return 'bg-red-50';
 }
 
+interface AdminBooking { id: string; name: string; email: string; role: string; pf: string; status: string; referenceCode: string; sessionDate: string; startTime: string; eventTitle: string; eventLocation: string; }
+
 export default function AdminOverviewPage() {
   const [allSessions, setAllSessions] = useState<Session[]>([]);
   const [events, setEvents] = useState<CareerMazeEvent[]>([]);
+  const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [showAttendees, setShowAttendees] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Fetch events and sessions
+  // Fetch events, sessions, and bookings
   useEffect(() => {
     Promise.all([
       fetch('/api/sessions', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/admin/setup', { cache: 'no-store' }).then((r) => r.json()),
-    ]).then(([sessionsData, eventsData]) => {
+      fetch('/api/admin/bookings', { cache: 'no-store' }).then((r) => r.json()),
+    ]).then(([sessionsData, eventsData, bookingsData]) => {
       setAllSessions(sessionsData);
       setEvents(eventsData);
+      setAllBookings(bookingsData);
       // Select all events by default
       setSelectedEventIds(new Set(eventsData.map((e: CareerMazeEvent) => e.id)));
       setLoading(false);
@@ -158,6 +164,53 @@ export default function AdminOverviewPage() {
           <StatCard label="Empty Sessions" value={stats.empty} sub={`of ${stats.total} total`} color="bg-amber-50 text-amber-800 border-amber-200" />
           <StatCard label="Partially Booked" value={stats.partial} sub="1–2 attendees" color="bg-violet-50 text-violet-800 border-violet-200" />
         </div>
+
+        {/* Attendees section */}
+        <div className="mb-6 flex items-center gap-3">
+          <button onClick={() => setShowAttendees(!showAttendees)} className="px-4 py-2 bg-[#1a1a2e] text-white text-sm rounded hover:bg-[#2a2a4e]">
+            {showAttendees ? 'Hide Attendees' : 'Show Attendees'}
+          </button>
+          <button onClick={() => {
+            const filtered = allBookings.filter(b => b.status === 'confirmed' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
+            const csv = 'Event,Name,Email,Role,PF,Date,Time,Status,Reference\n' + filtered.map(b => `"${b.eventTitle}","${b.name}","${b.email}","${b.role}","${b.pf}","${b.sessionDate}","${b.startTime.slice(0,5)}","${b.status}","${b.referenceCode}"`).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'career-maze-bookings.csv';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+          }} className="px-4 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700">
+            Export CSV
+          </button>
+          <span className="text-sm text-gray-500">{allBookings.filter(b => b.status === 'confirmed').length} confirmed bookings</span>
+        </div>
+
+        {showAttendees && allBookings.length > 0 && (
+          <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Event</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Name</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Email</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Date</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allBookings.filter(b => selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)).map(b => (
+                  <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.status === 'cancelled' ? 'bg-gray-50 text-gray-400' : ''}`}>
+                    <td className="px-3 py-2 text-xs">{b.eventTitle}</td>
+                    <td className="px-3 py-2">{b.name}</td>
+                    <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
+                    <td className="px-3 py-2">{b.sessionDate}</td>
+                    <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>
+                    <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs font-medium ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{b.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Date breakdown */}
         {allDates.length === 0 && <p className="text-gray-500 text-sm">No events selected. Use the filter above to select events.</p>}
