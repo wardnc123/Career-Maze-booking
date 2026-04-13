@@ -56,7 +56,7 @@ export default function HomePage() {
       <main className="min-h-screen bg-white">
         <div className="bg-[#1a1a2e] text-white">
           <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-            <h1 className="text-2xl sm:text-3xl font-bold">Booking Platform</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Amazon Event Booking System</h1>
             <p className="mt-1 text-sm text-gray-300">Browse programs and book sessions</p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function HomePage() {
     <main className="min-h-screen bg-white">
       <div className="bg-[#1a1a2e] text-white">
         <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <h1 className="text-2xl sm:text-3xl font-bold">Booking Platform</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Amazon Event Booking System</h1>
           <p className="mt-1 text-sm text-gray-300">Choose a program to book a session</p>
         </div>
       </div>
