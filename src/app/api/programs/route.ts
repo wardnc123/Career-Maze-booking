@@ -47,10 +47,16 @@ export async function POST(request: NextRequest) {
     slotIntervalMinutes: slotIntervalMinutes as number,
     maxAttendees: maxAttendees as number,
     customFormFields: (customFormFields as CreateProgramInput['customFormFields']) || [],
-    ...(calendarInviteTitleTemplate && { calendarInviteTitleTemplate: calendarInviteTitleTemplate as string }),
-    ...(emailTemplates && { emailTemplates: emailTemplates as CreateProgramInput['emailTemplates'] }),
-    ...(logoUrl && { logoUrl: logoUrl as string }),
   };
+  if (calendarInviteTitleTemplate && typeof calendarInviteTitleTemplate === 'string') {
+    input.calendarInviteTitleTemplate = calendarInviteTitleTemplate;
+  }
+  if (emailTemplates) {
+    input.emailTemplates = emailTemplates as CreateProgramInput['emailTemplates'];
+  }
+  if (logoUrl && typeof logoUrl === 'string') {
+    input.logoUrl = logoUrl;
+  }
 
   try {
     const program = createProgram(input);
