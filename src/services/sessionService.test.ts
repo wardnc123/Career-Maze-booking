@@ -69,20 +69,18 @@ describe('SessionService', () => {
       }
     });
 
-    it('all start times fall in morning or afternoon UTC windows', () => {
-      // Morning London 09:00–11:30 → UTC 08:00–10:30
-      // Afternoon London 14:00–16:30 → UTC 13:00–15:30
-      const validUtcTimes = new Set(ALL_SLOTS_LONDON.map(londonToUtc));
+    it('all start times fall in morning or afternoon local time windows', () => {
+      // Sessions store start times in local timezone (London) as HH:MM:SS
+      const validLocalTimes = new Set(ALL_SLOTS_LONDON.map(t => t + ':00'));
       for (const s of sessions) {
-        expect(validUtcTimes.has(s.startTime)).toBe(true);
+        expect(validLocalTimes.has(s.startTime)).toBe(true);
       }
     });
 
-    it('no sessions during lunch break (12:00–13:59 London / 11:00–12:59 UTC)', () => {
+    it('no sessions during lunch break (13:00–13:59 London)', () => {
       for (const s of sessions) {
         const hour = parseInt(s.startTime.split(':')[0], 10);
-        expect(hour).not.toBe(11);
-        expect(hour).not.toBe(12);
+        expect(hour).not.toBe(13);
       }
     });
   });

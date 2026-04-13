@@ -44,7 +44,7 @@ describe('Feature: career-maze-booking, Property 14: Export contains all require
       fc.asyncProperty(
         fc.array(
           fc.record({
-            sessionIndex: fc.integer({ min: 0, max: 359 }),
+            sessionIndex: fc.integer({ min: 0, max: 299 }),
             name: fc.stringMatching(/^[A-Za-z ]{1,20}$/),
             email: fc.emailAddress(),
             role: fc.stringMatching(/^[A-Za-z]{1,15}$/),

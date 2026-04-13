@@ -204,7 +204,7 @@ describe('Integration: Admin login → dashboard → search → export', () => {
 
     // Header + 4 confirmed bookings + 1 waitlisted (waitlisted is in waitlist store, not bookings)
     // exportBookings exports from the bookings array, which includes confirmed bookings
-    expect(lines[0]).toBe('Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status');
+    expect(lines[0]).toBe('Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status,Program');
     // Should have at least 4 data rows (the 4 confirmed bookings)
     expect(lines.length).toBeGreaterThanOrEqual(5); // header + 4 rows
 

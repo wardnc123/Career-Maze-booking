@@ -43,8 +43,8 @@ describe('Feature: career-maze-booking, Property 6: Cancellation decrements coun
           sessions = generateSessions();
 
           // Pick a unique session from a different day to avoid overlap
-          // Each day has 18 sessions; use the first session of the chosen day
-          const sessionIndex = dayIndex * 18;
+          // Each day has 15 sessions; use the first session of the chosen day
+          const sessionIndex = dayIndex * 15;
           const session = sessions[sessionIndex];
           expect(session).toBeDefined();
 

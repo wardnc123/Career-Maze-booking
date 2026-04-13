@@ -35,7 +35,7 @@ describe('Feature: career-maze-booking, Property 10: Summary statistics accuracy
         // Generate a random number of bookings to create (across random sessions)
         fc.array(
           fc.record({
-            sessionIndex: fc.integer({ min: 0, max: 359 }),
+            sessionIndex: fc.integer({ min: 0, max: 299 }),
             name: fc.string({ minLength: 1, maxLength: 30 }),
             email: fc.emailAddress(),
             role: fc.string({ minLength: 1, maxLength: 20 }),

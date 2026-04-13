@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateIcs, parseIcs } from '@/services/calendarService';
+import { generateIcs, parseIcs, renderTemplate, type ProgramConfig } from '@/services/calendarService';
 import type { Booking, Session } from '@/models/types';
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
@@ -7,9 +7,11 @@ import type { Booking, Session } from '@/models/types';
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
     id: 'session-001',
+    eventId: 'event-001',
     sessionDate: '2026-08-03',
     startTime: '09:00:00',
     bookingCount: 1,
+    maxAttendees: 3,
     slotStatus: 'Limited',
     createdAt: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
@@ -26,6 +28,7 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
     pf: 'PF-42',
     status: 'confirmed',
     referenceCode: 'CM-0001ABCD',
+    customFields: null,
     createdAt: new Date('2026-08-01T10:00:00Z'),
     cancelledAt: null,
     ...overrides,
@@ -52,13 +55,12 @@ describe('CalendarService', () => {
       expect(ics).toContain('DTSTART;TZID=Europe/London:');
     });
 
-    it('includes VTIMEZONE block for Europe/London with GMT and BST', () => {
+    it('includes VTIMEZONE block for Europe/London', () => {
       const ics = generateIcs(makeBooking(), makeSession());
 
       expect(ics).toContain('BEGIN:VTIMEZONE');
       expect(ics).toContain('END:VTIMEZONE');
-      expect(ics).toContain('TZNAME:GMT');
-      expect(ics).toContain('TZNAME:BST');
+      expect(ics).toContain('TZID:Europe/London');
     });
 
     it('sets correct start time for the session', () => {
@@ -119,6 +121,66 @@ describe('CalendarService', () => {
 
     it('throws on invalid ICS content', () => {
       expect(() => parseIcs('not valid ics')).toThrow();
+    });
+  });
+
+  describe('generateIcs with programConfig', () => {
+    const programConfig: ProgramConfig = {
+      calendarInviteTitleTemplate: '{programName} Session — {userName}',
+      sessionDurationMinutes: 60,
+      programName: 'Tech Talks',
+    };
+
+    it('uses program template for summary', () => {
+      const booking = makeBooking({ name: 'Alice Smith' });
+      const ics = generateIcs(booking, makeSession(), undefined, undefined, undefined, programConfig);
+      const parsed = parseIcs(ics);
+
+      expect(parsed.summary).toBe('Tech Talks Session — Alice Smith');
+    });
+
+    it('uses program session duration instead of default 3 hours', () => {
+      const ics = generateIcs(makeBooking(), makeSession(), undefined, undefined, undefined, programConfig);
+
+      expect(ics).toContain('DURATION:PT1H');
+      expect(ics).not.toContain('DURATION:PT3H');
+    });
+
+    it('includes program name in description', () => {
+      const ics = generateIcs(makeBooking(), makeSession(), undefined, undefined, undefined, programConfig);
+
+      expect(ics).toContain('Program: Tech Talks');
+    });
+
+    it('uses 30-minute duration correctly', () => {
+      const config: ProgramConfig = { ...programConfig, sessionDurationMinutes: 30 };
+      const ics = generateIcs(makeBooking(), makeSession(), undefined, undefined, undefined, config);
+
+      expect(ics).toContain('DURATION:PT30M');
+    });
+
+    it('uses 120-minute duration correctly', () => {
+      const config: ProgramConfig = { ...programConfig, sessionDurationMinutes: 120 };
+      const ics = generateIcs(makeBooking(), makeSession(), undefined, undefined, undefined, config);
+
+      expect(ics).toContain('DURATION:PT2H');
+    });
+  });
+
+  describe('renderTemplate', () => {
+    it('replaces {programName} and {userName} placeholders', () => {
+      const result = renderTemplate('{programName} Session — {userName}', 'Tech Talks', 'Alice');
+      expect(result).toBe('Tech Talks Session — Alice');
+    });
+
+    it('replaces multiple occurrences of the same placeholder', () => {
+      const result = renderTemplate('{programName} - {programName}', 'MyProg', 'Bob');
+      expect(result).toBe('MyProg - MyProg');
+    });
+
+    it('returns template unchanged when no placeholders present', () => {
+      const result = renderTemplate('Static Title', 'Prog', 'User');
+      expect(result).toBe('Static Title');
     });
   });
 

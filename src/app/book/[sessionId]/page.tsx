@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
-import type { Session, Booking, WaitlistEntry } from '@/models/types';
+import Image from 'next/image';
+import type { Session, Booking, WaitlistEntry, Program, CareerMazeEvent, CustomFormField } from '@/models/types';
 
 function formatTime(time: string): string {
   return time.slice(0, 5);
@@ -35,7 +36,8 @@ export default function BookSessionPage({
 }) {
   const [sessionId, setSessionId] = useState<string>('');
   const [session, setSession] = useState<Session | null>(null);
-  const [eventLocation, setEventLocation] = useState<string>('');
+  const [event, setEvent] = useState<CareerMazeEvent | null>(null);
+  const [program, setProgram] = useState<Program | null>(null);
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
 
   // Form fields
@@ -43,9 +45,18 @@ export default function BookSessionPage({
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
   const [pf, setPf] = useState('');
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Resolve params and fetch session
+  const brandColor = program?.brandColor || '#1a1a2e';
+  const programName = program?.name || 'Career Maze';
+  const sessionDuration = program?.sessionDurationMinutes || 180;
+  const customFormFields: CustomFormField[] = program?.customFormFields || [];
+
+  // Check if program uses default Career Maze fields (role + pf)
+  const isDefaultProgram = !program || program.id === 'default-career-maze';
+
+  // Resolve params and fetch session → event → program
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -54,24 +65,26 @@ export default function BookSessionPage({
       setSessionId(id);
 
       try {
-        const res = await fetch(`/api/sessions/${id}`);
-        if (!res.ok) {
-          if (!cancelled) setPageState({ kind: 'not-found' });
-          return;
+        const sessionRes = await fetch(`/api/sessions/${id}`);
+        if (!sessionRes.ok) { if (!cancelled) setPageState({ kind: 'not-found' }); return; }
+        const sessionData: Session = await sessionRes.json();
+        if (cancelled) return;
+        setSession(sessionData);
+
+        // Fetch events to find the event for this session
+        const eventsRes = await fetch('/api/admin/setup');
+        const eventsData: CareerMazeEvent[] = await eventsRes.json();
+        const eventData = eventsData.find((e) => e.id === sessionData.eventId);
+        if (eventData) {
+          setEvent(eventData);
+          // Fetch program
+          const progRes = await fetch(`/api/programs/${eventData.programId}`);
+          if (progRes.ok) {
+            const progData: Program = await progRes.json();
+            if (!cancelled) setProgram(progData);
+          }
         }
-        const data: Session = await res.json();
-        if (!cancelled) {
-          setSession(data);
-          setPageState({ kind: 'form' });
-          // Fetch event location
-          fetch('/api/admin/setup')
-            .then((r) => r.json())
-            .then((events) => {
-              const event = events.find((e: { id: string }) => e.id === data.eventId);
-              if (event?.location) setEventLocation(event.location);
-            })
-            .catch(() => {});
-        }
+        if (!cancelled) setPageState({ kind: 'form' });
       } catch {
         if (!cancelled) setPageState({ kind: 'not-found' });
       }
@@ -88,8 +101,17 @@ export default function BookSessionPage({
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       errors.email = 'Please enter a valid email address';
     }
-    if (!role.trim()) errors.role = 'Role is required';
-    if (!pf.trim()) errors.pf = 'PF is required';
+    // For default program, validate role and pf
+    if (isDefaultProgram) {
+      if (!role.trim()) errors.role = 'Role is required';
+      if (!pf.trim()) errors.pf = 'PF is required';
+    }
+    // Validate custom form fields
+    for (const field of customFormFields) {
+      if (field.required && !customFieldValues[field.name]?.trim()) {
+        errors[`custom_${field.name}`] = `${field.label} is required`;
+      }
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -101,6 +123,14 @@ export default function BookSessionPage({
     setPageState({ kind: 'submitting' });
     setFieldErrors({});
 
+    // Build custom fields object
+    const customFields: Record<string, string> = {};
+    for (const field of customFormFields) {
+      if (customFieldValues[field.name]) {
+        customFields[field.name] = customFieldValues[field.name].trim();
+      }
+    }
+
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
@@ -109,8 +139,9 @@ export default function BookSessionPage({
           sessionId,
           name: name.trim(),
           email: email.trim(),
-          role: role.trim(),
-          pf: pf.trim(),
+          role: isDefaultProgram ? role.trim() : (customFields.role || 'N/A'),
+          pf: isDefaultProgram ? pf.trim() : (customFields.pf || 'N/A'),
+          customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
         }),
       });
 
@@ -120,12 +151,10 @@ export default function BookSessionPage({
         setPageState({ kind: 'confirmed', booking: data.booking });
         return;
       }
-
       if (res.status === 200 && data.status === 'waitlisted') {
         setPageState({ kind: 'waitlisted', entry: data.waitlistEntry });
         return;
       }
-
       if (res.status === 409) {
         const errorMsg: string = data.error || 'Booking conflict';
         if (errorMsg.toLowerCase().includes('full')) {
@@ -135,7 +164,6 @@ export default function BookSessionPage({
         }
         return;
       }
-
       if (res.status === 400) {
         setPageState({ kind: 'form' });
         if (data.missingFields) {
@@ -149,7 +177,6 @@ export default function BookSessionPage({
         }
         return;
       }
-
       setPageState({ kind: 'error', message: data.error || 'Something went wrong' });
     } catch {
       setPageState({ kind: 'error', message: 'Network error. Please try again.' });
@@ -166,8 +193,8 @@ export default function BookSessionPage({
           sessionId,
           name: name.trim(),
           email: email.trim(),
-          role: role.trim(),
-          pf: pf.trim(),
+          role: isDefaultProgram ? role.trim() : 'N/A',
+          pf: isDefaultProgram ? pf.trim() : 'N/A',
         }),
       });
       const data = await res.json();
@@ -180,6 +207,8 @@ export default function BookSessionPage({
       setPageState({ kind: 'error', message: 'Network error. Please try again.' });
     }
   }
+
+  const backUrl = program ? `/programs/${program.id}` : '/';
 
   // --- Loading ---
   if (pageState.kind === 'loading') {
@@ -202,21 +231,23 @@ export default function BookSessionPage({
     );
   }
 
-  // Generate .ics content client-side for immediate download
-  function downloadCalendar(booking: { referenceCode: string; name: string; role: string; pf: string; id: string }, sess: { sessionDate: string; startTime: string }) {
+  function downloadCalendar(booking: { referenceCode: string; name: string; id: string }, sess: { sessionDate: string; startTime: string }) {
     const [year, month, day] = sess.sessionDate.split('-');
     const [hours, minutes] = sess.startTime.split(':');
     const dtStart = `${year}${month}${day}T${hours}${minutes}00`;
-    // 3 hour duration
-    const endH = String(parseInt(hours) + 3).padStart(2, '0');
-    const dtEnd = `${year}${month}${day}T${endH}${minutes}00`;
-    const loc = eventLocation || '';
+    const durationH = Math.floor(sessionDuration / 60);
+    const durationM = sessionDuration % 60;
+    const endMinutes = parseInt(hours) * 60 + parseInt(minutes) + sessionDuration;
+    const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
+    const endM = String(endMinutes % 60).padStart(2, '0');
+    const dtEnd = `${year}${month}${day}T${endH}${endM}00`;
+    const loc = event?.location || '';
     const ics = [
-      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//CareerMaze//Booking//EN',
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//BookingPlatform//Booking//EN',
       'BEGIN:VEVENT',
       `DTSTART:${dtStart}`, `DTEND:${dtEnd}`,
-      `SUMMARY:Career Maze Session - ${booking.name}`,
-      `DESCRIPTION:Ref: ${booking.referenceCode}\\nAttendee: ${booking.name}\\nRole: ${booking.role}\\nPF: ${booking.pf}\\n\\nNeed to cancel? Visit:\\n${window.location.origin}/cancel`,
+      `SUMMARY:${programName} Session - ${booking.name}`,
+      `DESCRIPTION:Ref: ${booking.referenceCode}\\nProgram: ${programName}\\n\\nNeed to cancel? Visit:\\n${window.location.origin}/cancel`,
       loc ? `LOCATION:${loc}` : '',
       `UID:${booking.id}`,
       'STATUS:CONFIRMED',
@@ -225,22 +256,22 @@ export default function BookSessionPage({
     const blob = new Blob([ics], { type: 'text/calendar' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `career-maze-${booking.referenceCode}.ics`;
+    a.href = url; a.download = `${programName.toLowerCase().replace(/\s+/g, '-')}-${booking.referenceCode}.ics`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
-  // Open in Outlook Web (works on any OS)
-  function openInOutlook(booking: { referenceCode: string; name: string; role: string; pf: string }, sess: { sessionDate: string; startTime: string }) {
+  function openInOutlook(booking: { referenceCode: string; name: string }, sess: { sessionDate: string; startTime: string }) {
     const [hours, minutes] = sess.startTime.split(':');
-    const endH = String(parseInt(hours) + 3).padStart(2, '0');
+    const endMinutes = parseInt(hours) * 60 + parseInt(minutes) + sessionDuration;
+    const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
+    const endM = String(endMinutes % 60).padStart(2, '0');
     const startISO = `${sess.sessionDate}T${hours}:${minutes}:00`;
-    const endISO = `${sess.sessionDate}T${endH}:${minutes}:00`;
-    const subject = encodeURIComponent(`Career Maze Session - ${booking.name}`);
-    const body = encodeURIComponent(`Booking reference: ${booking.referenceCode}\nAttendee: ${booking.name}\nRole: ${booking.role}\nPF: ${booking.pf}\n\nCancel: ${window.location.origin}/cancel`);
-    const loc = encodeURIComponent(eventLocation || '');
-    const outlookUrl = `https://outlook.office.com/calendar/0/deeplink/compose?subject=${subject}&startdt=${startISO}&enddt=${endISO}&body=${body}&location=${loc}`;
-    window.open(outlookUrl, '_blank');
+    const endISO = `${sess.sessionDate}T${endH}:${endM}:00`;
+    const subject = encodeURIComponent(`${programName} Session - ${booking.name}`);
+    const body = encodeURIComponent(`Booking reference: ${booking.referenceCode}\nProgram: ${programName}\n\nCancel: ${window.location.origin}/cancel`);
+    const loc = encodeURIComponent(event?.location || '');
+    window.open(`https://outlook.office.com/calendar/0/deeplink/compose?subject=${subject}&startdt=${startISO}&enddt=${endISO}&body=${body}&location=${loc}`, '_blank');
   }
 
   // --- Confirmed ---
@@ -252,35 +283,21 @@ export default function BookSessionPage({
           <h1 className="text-xl font-bold text-gray-900 mb-2">Booking Confirmed</h1>
           <p className="text-gray-600 mb-4">Your session has been booked successfully.</p>
           <div className="bg-gray-50 rounded p-4 mb-4 text-left space-y-1">
-            <p className="text-sm text-gray-500">Date</p>
+            {programName && <><p className="text-sm text-gray-500">Program</p><p className="font-medium text-gray-900">{programName}</p></>}
+            <p className="text-sm text-gray-500 mt-2">Date</p>
             <p className="font-medium text-gray-900">{formatDate(session.sessionDate)}</p>
             <p className="text-sm text-gray-500 mt-2">Time</p>
-            <p className="font-medium text-gray-900">{formatTime(session.startTime)} (Europe/London)</p>
+            <p className="font-medium text-gray-900">{formatTime(session.startTime)}</p>
             <p className="text-sm text-gray-500 mt-2">Reference Code</p>
             <p className="font-mono font-bold text-gray-900">{pageState.booking.referenceCode}</p>
-            {eventLocation && (
-              <>
-                <p className="text-sm text-gray-500 mt-2">Location</p>
-                <p className="font-medium text-gray-900">{eventLocation}</p>
-              </>
+            {event?.location && (
+              <><p className="text-sm text-gray-500 mt-2">Location</p><p className="font-medium text-gray-900">{event.location}</p></>
             )}
           </div>
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => openInOutlook(pageState.booking, session)}
-              className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              📧 Add to Outlook
-            </button>
-            <button
-              onClick={() => downloadCalendar(pageState.booking, session)}
-              className="inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
-            >
-              📅 Download .ics file
-            </button>
-            <a href="/" className="inline-block px-4 py-2 bg-[#1a1a2e] text-white rounded hover:bg-[#2a2a4e] transition-colors">
-              ← Back to sessions
-            </a>
+            <button onClick={() => openInOutlook(pageState.booking, session)} className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">📧 Add to Outlook</button>
+            <button onClick={() => downloadCalendar(pageState.booking, session)} className="inline-block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm">📅 Download .ics file</button>
+            <a href={backUrl} className="inline-block px-4 py-2 text-white rounded hover:opacity-90 transition-colors" style={{ backgroundColor: brandColor }}>← Back to sessions</a>
             <a href="/cancel" className="text-sm text-red-600 hover:underline">Need to cancel later?</a>
           </div>
         </div>
@@ -295,24 +312,20 @@ export default function BookSessionPage({
         <div className="bg-white rounded-lg shadow-md p-6 max-w-md w-full text-center">
           <div className="text-purple-600 text-4xl mb-3" aria-hidden="true">⏳</div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Added to Waitlist</h1>
-          <p className="text-gray-600 mb-4">
-            This session is currently full. You have been added to the waitlist and will be notified if a spot opens up.
-          </p>
+          <p className="text-gray-600 mb-4">This session is currently full. You have been added to the waitlist.</p>
           <div className="bg-gray-50 rounded p-4 mb-4 text-left space-y-1">
             <p className="text-sm text-gray-500">Date</p>
             <p className="font-medium text-gray-900">{formatDate(session.sessionDate)}</p>
             <p className="text-sm text-gray-500 mt-2">Time</p>
-            <p className="font-medium text-gray-900">{formatTime(session.startTime)} (Europe/London)</p>
+            <p className="font-medium text-gray-900">{formatTime(session.startTime)}</p>
           </div>
-          <a href="/" className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
-            ← Back to sessions
-          </a>
+          <a href={backUrl} className="inline-block px-4 py-2 text-white rounded hover:opacity-90 transition-colors" style={{ backgroundColor: brandColor }}>← Back to sessions</a>
         </div>
       </main>
     );
   }
 
-  // --- Session full (waitlist opt-in prompt) ---
+  // --- Session full ---
   if (pageState.kind === 'session-full') {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -322,18 +335,8 @@ export default function BookSessionPage({
           <p className="text-gray-600 mb-4">{pageState.message}</p>
           <p className="text-gray-600 mb-6">Would you like to join the waitlist?</p>
           <div className="flex gap-3 justify-center">
-            <button
-              onClick={handleJoinWaitlist}
-              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-            >
-              Join Waitlist
-            </button>
-            <a
-              href="/"
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-            >
-              Back to sessions
-            </a>
+            <button onClick={handleJoinWaitlist} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors">Join Waitlist</button>
+            <a href={backUrl} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Back to sessions</a>
           </div>
         </div>
       </main>
@@ -349,18 +352,8 @@ export default function BookSessionPage({
           <h1 className="text-xl font-bold text-gray-900 mb-2">Booking Error</h1>
           <p className="text-red-600 mb-4">{pageState.message}</p>
           <div className="flex gap-3 justify-center">
-            <button
-              onClick={() => setPageState({ kind: 'form' })}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Try Again
-            </button>
-            <a
-              href="/"
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-            >
-              Back to sessions
-            </a>
+            <button onClick={() => setPageState({ kind: 'form' })} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">Try Again</button>
+            <a href={backUrl} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Back to sessions</a>
           </div>
         </div>
       </main>
@@ -369,121 +362,112 @@ export default function BookSessionPage({
 
   // --- Form / Submitting ---
   const isSubmitting = pageState.kind === 'submitting';
+  const maxAttendees = session?.maxAttendees || program?.maxAttendees || 3;
 
   return (
     <main className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-lg mx-auto">
-        <a href="/" className="text-blue-600 hover:underline text-sm mb-4 inline-block">
-          ← Back to sessions
-        </a>
+        <a href={backUrl} className="text-blue-600 hover:underline text-sm mb-4 inline-block">← Back to sessions</a>
 
         {session && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h1 className="text-lg font-bold text-gray-900">Book Session</h1>
-            <p className="text-gray-700 mt-1">
-              {formatDate(session.sessionDate)} at {formatTime(session.startTime)} (Europe/London)
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              {session.bookingCount}/3 booked · {session.slotStatus}
-            </p>
+          <div className="rounded-lg p-4 mb-6 border" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
+            <div className="flex items-center gap-3 mb-2">
+              {program?.logoUrl && (
+                <Image src={program.logoUrl} alt={`${programName} logo`} width={40} height={40} className="rounded" />
+              )}
+              <h1 className="text-lg font-bold text-gray-900">Book {programName} Session</h1>
+            </div>
+            <p className="text-gray-700 mt-1">{formatDate(session.sessionDate)} at {formatTime(session.startTime)}</p>
+            <p className="text-sm text-gray-500 mt-1">{session.bookingCount}/{maxAttendees} booked · {session.slotStatus}</p>
           </div>
         )}
 
         {fieldErrors._form && (
-          <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-red-700 text-sm">
-            {fieldErrors._form}
-          </div>
+          <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-red-700 text-sm">{fieldErrors._form}</div>
         )}
 
         <form onSubmit={handleSubmit} noValidate className="bg-white rounded-lg shadow-md p-6 space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isSubmitting}
-              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                fieldErrors.name ? 'border-red-400' : 'border-gray-300'
-              }`}
-              aria-invalid={!!fieldErrors.name}
-              aria-describedby={fieldErrors.name ? 'name-error' : undefined}
-            />
-            {fieldErrors.name && (
-              <p id="name-error" className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
-            )}
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={isSubmitting}
+              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.name ? 'border-red-400' : 'border-gray-300'}`}
+              aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? 'name-error' : undefined} />
+            {fieldErrors.name && <p id="name-error" className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>}
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isSubmitting}
-              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                fieldErrors.email ? 'border-red-400' : 'border-gray-300'
-              }`}
-              aria-invalid={!!fieldErrors.email}
-              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
-            />
-            {fieldErrors.email && (
-              <p id="email-error" className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>
-            )}
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting}
+              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.email ? 'border-red-400' : 'border-gray-300'}`}
+              aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'email-error' : undefined} />
+            {fieldErrors.email && <p id="email-error" className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
           </div>
 
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-              Role <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="role"
-              type="text"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              disabled={isSubmitting}
-              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                fieldErrors.role ? 'border-red-400' : 'border-gray-300'
-              }`}
-              aria-invalid={!!fieldErrors.role}
-              aria-describedby={fieldErrors.role ? 'role-error' : undefined}
-            />
-            {fieldErrors.role && (
-              <p id="role-error" className="text-red-500 text-xs mt-1">{fieldErrors.role}</p>
-            )}
-          </div>
+          {isDefaultProgram && (
+            <>
+              <div>
+                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
+                <input id="role" type="text" value={role} onChange={(e) => setRole(e.target.value)} disabled={isSubmitting}
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.role ? 'border-red-400' : 'border-gray-300'}`}
+                  aria-invalid={!!fieldErrors.role} aria-describedby={fieldErrors.role ? 'role-error' : undefined} />
+                {fieldErrors.role && <p id="role-error" className="text-red-500 text-xs mt-1">{fieldErrors.role}</p>}
+              </div>
+              <div>
+                <label htmlFor="pf" className="block text-sm font-medium text-gray-700 mb-1">PF <span className="text-red-500">*</span></label>
+                <input id="pf" type="text" value={pf} onChange={(e) => setPf(e.target.value)} disabled={isSubmitting}
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.pf ? 'border-red-400' : 'border-gray-300'}`}
+                  aria-invalid={!!fieldErrors.pf} aria-describedby={fieldErrors.pf ? 'pf-error' : undefined} />
+                {fieldErrors.pf && <p id="pf-error" className="text-red-500 text-xs mt-1">{fieldErrors.pf}</p>}
+              </div>
+            </>
+          )}
 
-          <div>
-            <label htmlFor="pf" className="block text-sm font-medium text-gray-700 mb-1">
-              PF <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="pf"
-              type="text"
-              value={pf}
-              onChange={(e) => setPf(e.target.value)}
-              disabled={isSubmitting}
-              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                fieldErrors.pf ? 'border-red-400' : 'border-gray-300'
-              }`}
-              aria-invalid={!!fieldErrors.pf}
-              aria-describedby={fieldErrors.pf ? 'pf-error' : undefined}
-            />
-            {fieldErrors.pf && (
-              <p id="pf-error" className="text-red-500 text-xs mt-1">{fieldErrors.pf}</p>
-            )}
-          </div>
+          {!isDefaultProgram && customFormFields.map((field) => (
+            <div key={field.name}>
+              <label htmlFor={`custom-${field.name}`} className="block text-sm font-medium text-gray-700 mb-1">
+                {field.label} {field.required && <span className="text-red-500">*</span>}
+              </label>
+              {field.type === 'select' ? (
+                <select
+                  id={`custom-${field.name}`}
+                  value={customFieldValues[field.name] || ''}
+                  onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  disabled={isSubmitting}
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors[`custom_${field.name}`] ? 'border-red-400' : 'border-gray-300'}`}
+                >
+                  <option value="">Select…</option>
+                  {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              ) : field.type === 'textarea' ? (
+                <textarea
+                  id={`custom-${field.name}`}
+                  value={customFieldValues[field.name] || ''}
+                  onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  disabled={isSubmitting}
+                  rows={3}
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors[`custom_${field.name}`] ? 'border-red-400' : 'border-gray-300'}`}
+                />
+              ) : (
+                <input
+                  id={`custom-${field.name}`}
+                  type="text"
+                  value={customFieldValues[field.name] || ''}
+                  onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  disabled={isSubmitting}
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors[`custom_${field.name}`] ? 'border-red-400' : 'border-gray-300'}`}
+                />
+              )}
+              {fieldErrors[`custom_${field.name}`] && (
+                <p className="text-red-500 text-xs mt-1">{fieldErrors[`custom_${field.name}`]}</p>
+              )}
+            </div>
+          ))}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2 px-4 text-white rounded font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            style={{ backgroundColor: brandColor }}
           >
             {isSubmitting ? 'Booking…' : 'Book Session'}
           </button>

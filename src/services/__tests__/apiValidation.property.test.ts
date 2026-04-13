@@ -90,7 +90,7 @@ describe('Feature: career-maze-booking, Property 17: API validation returns corr
         fc.emailAddress(),
         fc.string({ minLength: 1, maxLength: 30 }),
         fc.string({ minLength: 1, maxLength: 20 }),
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         async (omittedFields, name, email, role, pf, sessionIndex) => {
           resetBookingStore();
           sessions = generateSessions();
@@ -144,7 +144,7 @@ describe('Feature: career-maze-booking, Property 17: API validation returns corr
         fc.string({ minLength: 1, maxLength: 30 }),
         fc.string({ minLength: 1, maxLength: 30 }),
         fc.string({ minLength: 1, maxLength: 20 }),
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         async (badEmail, name, role, pf, sessionIndex) => {
           resetBookingStore();
           sessions = generateSessions();
@@ -192,7 +192,7 @@ describe('Feature: career-maze-booking, Property 17: API validation returns corr
         fc.emailAddress(),
         fc.string({ minLength: 1, maxLength: 30 }),
         fc.string({ minLength: 1, maxLength: 20 }),
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         async (fieldsToBlank, blankValue, name, email, role, pf, sessionIndex) => {
           resetBookingStore();
           sessions = generateSessions();

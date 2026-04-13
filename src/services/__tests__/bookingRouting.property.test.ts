@@ -35,9 +35,9 @@ describe('Feature: career-maze-booking, Property 4: Booking routing by capacity'
           sessions = generateSessions();
 
           // Pick a unique session per day to avoid overlap issues.
-          // Each day has 18 sessions; use different days via sessionDayIndex
-          // and pick the first session of that day (index = dayIndex * 18).
-          const sessionIndex = sessionDayIndex * 18;
+          // Each day has 15 sessions; use different days via sessionDayIndex
+          // and pick the first session of that day (index = dayIndex * 15).
+          const sessionIndex = sessionDayIndex * 15;
           const session = sessions[sessionIndex];
           expect(session).toBeDefined();
 

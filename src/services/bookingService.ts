@@ -14,6 +14,7 @@ import {
   addBooking as dmAddBooking, addWaitlistEntry as dmAddWaitlistEntry,
   removeWaitlistEntry as dmRemoveWaitlistEntry,
   setBookingsStore, setWaitlistStore,
+  getEventsStore, getProgramsStore,
 } from '@/lib/dataManager';
 
 const sessionLocks = new Set<string>();
@@ -58,11 +59,11 @@ export async function createBooking(data: BookingRequest): Promise<BookingResult
       }
     }
 
-    if (session.bookingCount < 3) {
-      const booking: Booking = { id: uuidv4(), sessionId: data.sessionId, name: data.name, email: data.email, role: data.role, pf: data.pf, status: 'confirmed', referenceCode: generateReferenceCode(), createdAt: new Date(), cancelledAt: null };
+    if (session.bookingCount < session.maxAttendees) {
+      const booking: Booking = { id: uuidv4(), sessionId: data.sessionId, name: data.name, email: data.email, role: data.role, pf: data.pf, status: 'confirmed', referenceCode: generateReferenceCode(), customFields: (data as any).customFields || null, createdAt: new Date(), cancelledAt: null };
       dmAddBooking(booking);
       session.bookingCount += 1;
-      session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(data.sessionId).length);
+      session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(data.sessionId).length, session.maxAttendees);
       if (notificationService) fireNotification(() => notificationService!.sendConfirmation(booking, session));
       fireAuditLog('booking_created', 'booking', booking.id, booking.email, { sessionId: session.id, referenceCode: booking.referenceCode });
       emit({ type: 'booking:created', data: { sessionId: session.id, bookingId: booking.id } });
@@ -71,7 +72,7 @@ export async function createBooking(data: BookingRequest): Promise<BookingResult
     } else {
       const entry: WaitlistEntry = { id: uuidv4(), sessionId: data.sessionId, name: data.name, email: data.email, role: data.role, pf: data.pf, createdAt: new Date() };
       dmAddWaitlistEntry(entry);
-      session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(data.sessionId).length);
+      session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(data.sessionId).length, session.maxAttendees);
       return { status: 'waitlisted', waitlistEntry: entry };
     }
   } finally { releaseLock(data.sessionId); }
@@ -98,14 +99,14 @@ export async function cancelBooking(bookingId: string, email: string): Promise<v
     if (waitlist.length > 0) {
       const promoted = waitlist[0];
       dmRemoveWaitlistEntry(promoted.id);
-      const promotedBooking: Booking = { id: uuidv4(), sessionId: promoted.sessionId, name: promoted.name, email: promoted.email, role: promoted.role, pf: promoted.pf, status: 'confirmed', referenceCode: generateReferenceCode(), createdAt: new Date(), cancelledAt: null };
+      const promotedBooking: Booking = { id: uuidv4(), sessionId: promoted.sessionId, name: promoted.name, email: promoted.email, role: promoted.role, pf: promoted.pf, status: 'confirmed', referenceCode: generateReferenceCode(), customFields: null, createdAt: new Date(), cancelledAt: null };
       dmAddBooking(promotedBooking);
       session.bookingCount += 1;
       if (notificationService) fireNotification(() => notificationService!.sendWaitlistPromotion(promotedBooking, session));
       fireAuditLog('waitlist_promoted', 'booking', promotedBooking.id, 'system', { sessionId: session.id, promotedFrom: promoted.id });
     }
 
-    session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(booking.sessionId).length);
+    session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(booking.sessionId).length, session.maxAttendees);
     emit({ type: 'session:updated', data: { sessionId: session.id, bookingCount: session.bookingCount, slotStatus: session.slotStatus } });
   } finally { releaseLock(booking.sessionId); }
 }
@@ -121,7 +122,7 @@ export function getStats() {
   const allSessions = getSessions();
   const bookings = getBookingsStore();
   const totalBookings = bookings.filter((b) => b.status === 'confirmed').length;
-  const fullSessions = allSessions.filter((s) => s.bookingCount >= 3).length;
+  const fullSessions = allSessions.filter((s) => s.bookingCount >= (s.maxAttendees ?? 3)).length;
   const emptySessions = allSessions.filter((s) => s.bookingCount === 0).length;
   return { totalBookings, fullSessions, emptySessions, waitlistCount: getWaitlistStore().length };
 }
@@ -131,8 +132,21 @@ export function exportBookings(filters?: import('@/models/types').SessionFilter)
   const sessionIds = new Set(filteredSessions.map((s) => s.id));
   const sessionMap = new Map(filteredSessions.map((s) => [s.id, s]));
   const filtered = getBookingsStore().filter((b) => sessionIds.has(b.sessionId));
-  const header = 'Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status';
-  const rows = filtered.map((b) => { const s = sessionMap.get(b.sessionId); return [b.id, s?.sessionDate ?? '', s?.startTime ?? '', esc(b.name), esc(b.email), esc(b.role), esc(b.pf), b.createdAt.toISOString(), b.status].join(','); });
+
+  // Build event and program lookup maps
+  const events = getEventsStore();
+  const programs = getProgramsStore();
+  const eventMap = new Map(events.map((e) => [e.id, e]));
+  const programMap = new Map(programs.map((p) => [p.id, p]));
+
+  const header = 'Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status,Program';
+  const rows = filtered.map((b) => {
+    const s = sessionMap.get(b.sessionId);
+    const event = s ? eventMap.get(s.eventId) : undefined;
+    const program = event ? programMap.get(event.programId) : undefined;
+    const programName = program ? program.name : '';
+    return [b.id, s?.sessionDate ?? '', s?.startTime ?? '', esc(b.name), esc(b.email), esc(b.role), esc(b.pf), b.createdAt.toISOString(), b.status, esc(programName)].join(',');
+  });
   return [header, ...rows].join('\n');
 }
 

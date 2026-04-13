@@ -26,30 +26,26 @@ describe('Feature: career-maze-booking, Property 1: Session generation produces 
      */
     fc.assert(
       fc.property(
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         (index) => {
           const session = sessions[index];
           expect(session).toBeDefined();
 
-          // Parse UTC start time
-          const [utcHourStr, utcMinStr] = session.startTime.split(':');
-          const utcHour = parseInt(utcHourStr, 10);
-          const utcMin = parseInt(utcMinStr, 10);
-
-          // Convert to London time (BST = UTC + 1 in August)
-          const londonHour = utcHour + BST_OFFSET_HOURS;
-          const londonMin = utcMin;
+          // startTime is stored in local time (London) as HH:MM:SS
+          const [hourStr, minStr] = session.startTime.split(':');
+          const londonHour = parseInt(hourStr, 10);
+          const londonMin = parseInt(minStr, 10);
 
           // 1. Minutes must be in {0, 15, 30}
           expect([0, 15, 30]).toContain(londonMin);
 
-          // 2. Hours must fall in morning (9–11) or afternoon (14–16) London windows
-          const isMorningWindow = londonHour >= 9 && londonHour <= 11;
-          const isAfternoonWindow = londonHour >= 14 && londonHour <= 16;
+          // 2. Hours must fall in morning (9–12) or afternoon (14–15) London windows
+          const isMorningWindow = londonHour >= 9 && londonHour <= 12;
+          const isAfternoonWindow = londonHour >= 14 && londonHour <= 15;
           expect(isMorningWindow || isAfternoonWindow).toBe(true);
 
-          // 3. No session during lunch break (12:00–13:59 London)
-          expect([12, 13]).not.toContain(londonHour);
+          // 3. No session during lunch break (13:00–13:59 London)
+          expect(londonHour).not.toBe(13);
 
           // 4. Initial bookingCount = 0 (capacity limit is 3, starts empty)
           expect(session.bookingCount).toBe(0);

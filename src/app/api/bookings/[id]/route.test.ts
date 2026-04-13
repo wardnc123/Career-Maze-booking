@@ -93,7 +93,7 @@ describe('DELETE /api/bookings/:id', () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error).toBe('Email is required for cancellation verification');
+    expect(body.error).toBe('Email is required');
   });
 
   it('returns 400 for invalid JSON body', async () => {

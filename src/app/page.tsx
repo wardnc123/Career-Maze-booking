@@ -1,102 +1,29 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import type { Session, SlotStatus, CareerMazeEvent } from '@/models/types';
+import type { Program } from '@/models/types';
 
-/** Format time string (HH:MM:SS or HH:MM) to display format (HH:MM) */
-function formatTime(time: string): string {
-  return time.slice(0, 5);
-}
-
-/** Date range Aug 3–22, 2026 */
-function generateDates(): string[] {
-  const dates: string[] = [];
-  const current = new Date('2026-08-03T00:00:00Z');
-  const end = new Date('2026-08-22T00:00:00Z');
-  while (current <= end) {
-    dates.push(current.toISOString().slice(0, 10));
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-  return dates;
-}
-
-const STATUS_COLORS: Record<SlotStatus, { bg: string; text: string; label: string }> = {
-  Available: { bg: 'bg-emerald-50 border-emerald-400 hover:bg-emerald-100', text: 'text-emerald-800', label: 'Available' },
-  Limited: { bg: 'bg-amber-50 border-amber-400 hover:bg-amber-100', text: 'text-amber-800', label: 'Limited' },
-  Full: { bg: 'bg-red-50 border-red-400 hover:bg-red-100', text: 'text-red-800', label: 'Full' },
-  Waitlisted: { bg: 'bg-violet-50 border-violet-400 hover:bg-violet-100', text: 'text-violet-800', label: 'Waitlisted' },
-};
-
-const LEGEND_ITEMS: { status: SlotStatus; dot: string; label: string }[] = [
-  { status: 'Available', dot: 'bg-emerald-400', label: 'Available (0 booked)' },
-  { status: 'Limited', dot: 'bg-amber-400', label: 'Limited (1–2 booked)' },
-  { status: 'Full', dot: 'bg-red-400', label: 'Full (3 booked)' },
-  { status: 'Waitlisted', dot: 'bg-violet-400', label: 'Waitlisted' },
-];
-
-function formatDateLabel(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z');
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-}
-
-export default function BookingPage() {
-  const [allSessions, setAllSessions] = useState<Session[]>([]);
-  const [events, setEvents] = useState<CareerMazeEvent[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>('');
+export default function HomePage() {
+  const [programs, setPrograms] = useState<Program[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter sessions by selected event
-  const sessions = useMemo(() => {
-    if (!selectedEventId) return allSessions;
-    return allSessions.filter((s) => s.eventId === selectedEventId);
-  }, [allSessions, selectedEventId]);
-
-  // Selected event
-  const selectedEvent = useMemo(() => events.find((e) => e.id === selectedEventId), [events, selectedEventId]);
-
-  // Derive unique sorted dates from sessions
-  const allDates = useMemo(() => {
-    const dates = [...new Set(sessions.map((s) => s.sessionDate))].sort();
-    return dates;
-  }, [sessions]);
-
-  // Auto-select first date when sessions load
-  useEffect(() => {
-    if (allDates.length > 0 && !selectedDate) {
-      setSelectedDate(allDates[0]);
-    }
-  }, [allDates, selectedDate]);
-
-  // Derive date range label
-  const dateRangeLabel = useMemo(() => {
-    if (allDates.length === 0) return '';
-    const first = new Date(allDates[0] + 'T00:00:00Z');
-    const last = new Date(allDates[allDates.length - 1] + 'T00:00:00Z');
-    const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-    return `${fmt(first)} – ${fmt(last)}`;
-  }, [allDates]);
-
-  // Fetch sessions and events on mount
   useEffect(() => {
     let cancelled = false;
-    async function fetchData() {
+    async function fetchPrograms() {
       try {
-        const [sessionsRes, eventsRes] = await Promise.all([
-          fetch('/api/sessions', { cache: 'no-store' }),
-          fetch('/api/admin/setup', { cache: 'no-store' }),
-        ]);
-        if (!sessionsRes.ok) throw new Error('Failed to load sessions');
-        const [sessionsData, eventsData] = await Promise.all([sessionsRes.json(), eventsRes.json()]);
-        if (!cancelled) {
-          setAllSessions(sessionsData);
-          setEvents(eventsData);
-          // Auto-select first event
-          if (eventsData.length > 0) setSelectedEventId(eventsData[0].id);
-          setLoading(false);
+        const res = await fetch('/api/programs', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed to load programs');
+        const data: Program[] = await res.json();
+        if (cancelled) return;
+        const active = data.filter((p) => p.active);
+        if (active.length === 1) {
+          window.location.href = `/programs/${active[0].id}`;
+          return;
         }
+        setPrograms(active);
+        setLoading(false);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Unknown error');
@@ -104,64 +31,14 @@ export default function BookingPage() {
         }
       }
     }
-    fetchData();
+    fetchPrograms();
     return () => { cancelled = true; };
-  }, []);
-
-  // SSE for real-time updates
-  useEffect(() => {
-    const eventSource = new EventSource('/api/events');
-
-    eventSource.addEventListener('session:updated', (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setAllSessions((prev) =>
-          prev.map((s) =>
-            s.id === data.sessionId
-              ? { ...s, bookingCount: data.bookingCount, slotStatus: data.slotStatus }
-              : s
-          )
-        );
-      } catch { /* ignore parse errors */ }
-    });
-
-    eventSource.onerror = () => {
-      // EventSource will auto-reconnect
-    };
-
-    return () => eventSource.close();
-  }, []);
-
-  // Group sessions for selected date into morning/afternoon
-  const { morning, afternoon } = useMemo(() => {
-    const daySessions = sessions
-      .filter((s) => s.sessionDate === selectedDate)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-    const morningSlots: Session[] = [];
-    const afternoonSlots: Session[] = [];
-
-    for (const s of daySessions) {
-      const londonTime = formatTime(s.startTime);
-      const hour = parseInt(londonTime.split(':')[0], 10);
-      if (hour < 13) {
-        morningSlots.push(s);
-      } else {
-        afternoonSlots.push(s);
-      }
-    }
-
-    return { morning: morningSlots, afternoon: afternoonSlots };
-  }, [sessions, selectedDate]);
-
-  const handleSlotClick = useCallback((session: Session) => {
-    window.location.href = `/book/${session.id}`;
   }, []);
 
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-gray-600 text-lg">Loading sessions…</p>
+        <p className="text-gray-600 text-lg">Loading…</p>
       </main>
     );
   }
@@ -174,17 +51,17 @@ export default function BookingPage() {
     );
   }
 
-  if (events.length === 0) {
+  if (!programs || programs.length === 0) {
     return (
       <main className="min-h-screen bg-white">
         <div className="bg-[#1a1a2e] text-white">
-          <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 flex items-center gap-4">
-            <Image src="/career-maze-logo.jpg" alt="Career Maze logo" width={80} height={80} className="rounded-lg" />
-            <h1 className="text-2xl sm:text-3xl font-bold">Career Maze Session Booking</h1>
+          <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+            <h1 className="text-2xl sm:text-3xl font-bold">Booking Platform</h1>
+            <p className="mt-1 text-sm text-gray-300">Browse programs and book sessions</p>
           </div>
         </div>
         <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-          <p className="text-gray-600 text-lg mb-4">No events are currently available for booking.</p>
+          <p className="text-gray-600 text-lg mb-4">No programs are currently available.</p>
           <p className="text-gray-500 text-sm">Check back soon, or contact the organiser for details.</p>
         </div>
       </main>
@@ -193,133 +70,70 @@ export default function BookingPage() {
 
   return (
     <main className="min-h-screen bg-white">
-      {/* Branded header */}
       <div className="bg-[#1a1a2e] text-white">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 flex items-center gap-4">
-          <Image
-            src="/career-maze-logo.jpg"
-            alt="Career Maze logo"
-            width={80}
-            height={80}
-            className="rounded-lg"
-          />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">
-              Career Maze Session Booking
-            </h1>
-            <p className="mt-1 text-sm text-gray-300">
-              {selectedEvent ? selectedEvent.title : dateRangeLabel} · All times in Europe/London
-            </p>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+          <h1 className="text-2xl sm:text-3xl font-bold">Booking Platform</h1>
+          <p className="mt-1 text-sm text-gray-300">Choose a program to book a session</p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        {/* Event selector (shown when multiple events exist) */}
-        {events.length > 1 && (
-          <div className="mb-6">
-            <label htmlFor="event-select" className="block text-sm font-medium text-gray-700 mb-1">Select Event</label>
-            <select
-              id="event-select"
-              value={selectedEventId}
-              onChange={(e) => { setSelectedEventId(e.target.value); setSelectedDate(''); }}
-              className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
+      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {programs.map((program) => (
+            <a
+              key={program.id}
+              href={`/programs/${program.id}`}
+              className="block border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+              style={{ borderColor: program.brandColor }}
             >
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>{event.title}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mb-6" role="list" aria-label="Slot status legend">
-          {LEGEND_ITEMS.map((item) => (
-            <div key={item.status} className="flex items-center gap-1.5 text-sm" role="listitem">
-              <span className={`inline-block w-3 h-3 rounded-full ${item.dot}`} aria-hidden="true" />
-              <span className="text-gray-700">{item.label}</span>
-            </div>
+              <div className="h-2" style={{ backgroundColor: program.brandColor }} />
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  {program.logoUrl ? (
+                    <Image
+                      src={program.logoUrl}
+                      alt={`${program.name} logo`}
+                      width={64}
+                      height={64}
+                      className="rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold"
+                      style={{ backgroundColor: program.brandColor }}
+                    >
+                      {program.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <h2 className="text-lg font-semibold text-gray-900">{program.name}</h2>
+                </div>
+                <p className="text-sm text-gray-500">
+                  {program.sessionDurationMinutes >= 60
+                    ? `${program.sessionDurationMinutes / 60}h sessions`
+                    : `${program.sessionDurationMinutes}min sessions`}
+                  {' · '}Up to {program.maxAttendees} attendee{program.maxAttendees !== 1 ? 's' : ''} per slot
+                </p>
+                <div className="mt-4">
+                  <span
+                    className="inline-block px-3 py-1 text-sm font-medium text-white rounded"
+                    style={{ backgroundColor: program.brandColor }}
+                  >
+                    Book Now →
+                  </span>
+                </div>
+              </div>
+            </a>
           ))}
         </div>
-
-        {/* Date navigation */}
-        <nav aria-label="Date navigation" className="mb-6 overflow-x-auto">
-          <div className="flex gap-1 sm:gap-2 min-w-max pb-2">
-            {allDates.map((date) => {
-              const isSelected = date === selectedDate;
-              return (
-                <button
-                  key={date}
-                  onClick={() => setSelectedDate(date)}
-                  className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
-                    isSelected
-                      ? 'bg-[#1a1a2e] text-white shadow-sm'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
-                  }`}
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${formatDateLabel(date)}`}
-                >
-                  {formatDateLabel(date)}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-
-        {/* Session grid */}
-        <SessionBlock title="Morning (9:00 – 12:00)" sessions={morning} onSlotClick={handleSlotClick} />
-        <SessionBlock title="Afternoon (14:00 – 15:15)" sessions={afternoon} onSlotClick={handleSlotClick} />
 
         <div className="mt-8 pt-6 border-t border-gray-200 text-center">
           <p className="text-sm text-gray-500 mb-2">Need to manage your bookings?</p>
           <div className="flex gap-4 justify-center">
-            <a href="/my-bookings" className="text-sm text-blue-600 hover:underline font-medium">My Bookings / Download Calendar</a>
+            <a href="/my-bookings" className="text-sm text-blue-600 hover:underline font-medium">My Bookings</a>
             <a href="/cancel" className="text-sm text-red-600 hover:underline font-medium">Cancel a Booking</a>
           </div>
         </div>
       </div>
     </main>
-  );
-}
-
-function SessionBlock({
-  title,
-  sessions,
-  onSlotClick,
-}: {
-  title: string;
-  sessions: Session[];
-  onSlotClick: (s: Session) => void;
-}) {
-  if (sessions.length === 0) return null;
-
-  return (
-    <section className="mb-8">
-      <h2 className="text-lg font-semibold text-gray-800 mb-3">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 gap-2 sm:gap-3">
-        {sessions.map((session) => {
-          const londonTime = formatTime(session.startTime);
-          const style = STATUS_COLORS[session.slotStatus];
-          return (
-            <button
-              key={session.id}
-              onClick={() => onSlotClick(session)}
-              className={`rounded-lg border p-3 text-center transition-colors cursor-pointer ${style.bg}`}
-              aria-label={`${londonTime} — ${style.label} (${session.bookingCount}/3 booked)`}
-            >
-              <div className={`text-sm sm:text-base font-semibold ${style.text}`}>
-                {londonTime}
-              </div>
-              <div className={`text-xs mt-0.5 ${style.text} opacity-75`}>
-                {session.bookingCount}/3
-              </div>
-              <div className={`text-xs mt-0.5 ${style.text}`}>
-                {style.label}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </section>
   );
 }

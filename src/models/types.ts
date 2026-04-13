@@ -6,6 +6,45 @@ export type SlotStatus = 'Available' | 'Limited' | 'Full' | 'Waitlisted';
 
 export type BookingStatus = 'confirmed' | 'cancelled';
 
+// ─── Program Types ───────────────────────────────────────────────────────────
+
+export interface CustomFormField {
+  name: string;
+  label: string;
+  type: 'text' | 'select' | 'textarea';
+  required: boolean;
+  options?: string[];
+}
+
+export interface EmailTemplate {
+  subject: string;
+  bodyHtml: string;
+  headerHtml?: string;
+  footerHtml?: string;
+}
+
+export interface ProgramEmailTemplates {
+  confirmation?: EmailTemplate;
+  cancellation?: EmailTemplate;
+  waitlist_promotion?: EmailTemplate;
+  reminder?: EmailTemplate;
+}
+
+export interface Program {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  brandColor: string;
+  sessionDurationMinutes: number;
+  slotIntervalMinutes: number;
+  maxAttendees: number;
+  customFormFields: CustomFormField[];
+  calendarInviteTitleTemplate: string;
+  emailTemplates: ProgramEmailTemplates;
+  active: boolean;
+  createdAt: Date;
+}
+
 // ─── Entity Types ────────────────────────────────────────────────────────────
 
 export interface Session {
@@ -13,7 +52,8 @@ export interface Session {
   eventId: string;             // Which event this session belongs to
   sessionDate: string;         // ISO date string (YYYY-MM-DD)
   startTime: string;           // Time string (HH:MM:SS) in UTC
-  bookingCount: number;        // 0–3
+  bookingCount: number;        // 0–N (where N = maxAttendees)
+  maxAttendees: number;        // Snapshot from program at creation time
   slotStatus: SlotStatus;
   createdAt: Date;
 }
@@ -27,6 +67,7 @@ export interface Booking {
   pf: string;
   status: BookingStatus;
   referenceCode: string;
+  customFields: Record<string, string> | null;
   createdAt: Date;
   cancelledAt: Date | null;
 }
@@ -116,6 +157,7 @@ export interface CareerMazeEvent {
   title: string;
   location: string;           // Site/building location
   timezone: string;           // IANA timezone e.g. 'Europe/London', 'America/New_York'
+  programId: string;          // Foreign key to Program
   dates: string[];            // ISO date strings
   timeSlots: string[];        // Local time strings (HH:MM) in the event's timezone
   createdAt: Date;

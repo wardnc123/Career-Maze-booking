@@ -2,14 +2,15 @@
 // Call ensureLoaded() at the start of any API route.
 // Individual persist functions are called after mutations.
 
-import { loadData, saveEvent, saveSessions, saveSession, saveBooking, saveWaitlistEntry, deleteWaitlistEntry, deleteEventFromDb, deleteSessionsFromDb } from './persistence';
+import { loadData, saveEvent, saveSessions, saveSession, saveBooking, saveWaitlistEntry, deleteWaitlistEntry, deleteEventFromDb, deleteSessionsFromDb, loadPrograms, saveProgram } from './persistence';
 import { initDb, getDbUrl } from './db';
-import type { Session, Booking, WaitlistEntry, CareerMazeEvent } from '@/models/types';
+import type { Session, Booking, WaitlistEntry, CareerMazeEvent, Program } from '@/models/types';
 
 let events: CareerMazeEvent[] = [];
 let sessions: Session[] = [];
 let bookings: Booking[] = [];
 let waitlistEntries: WaitlistEntry[] = [];
+let programs: Program[] = [];
 let dbInitialized = false;
 
 const hasDb = () => !!getDbUrl();
@@ -22,6 +23,7 @@ export async function ensureLoaded(): Promise<void> {
   sessions = data.sessions;
   bookings = data.bookings;
   waitlistEntries = data.waitlistEntries;
+  programs = await loadPrograms();
 }
 
 // persist() is now a no-op — individual operations save directly to Postgres
@@ -43,22 +45,26 @@ export async function persistWaitlistEntry(w: WaitlistEntry) { if (hasDb()) awai
 export async function persistDeleteWaitlist(id: string) { if (hasDb()) await deleteWaitlistEntry(id); }
 export async function persistDeleteEvent(eventId: string) { if (hasDb()) await deleteEventFromDb(eventId); }
 export async function persistDeleteSessions(ids: string[]) { if (hasDb()) await deleteSessionsFromDb(ids); }
+export async function persistProgram(p: Program) { if (hasDb()) await saveProgram(p); }
 
 // ─── Accessors ───────────────────────────────────────────────────────────────
 export function getEventsStore(): CareerMazeEvent[] { return events; }
 export function getSessionsStore(): Session[] { return sessions; }
 export function getBookingsStore(): Booking[] { return bookings; }
 export function getWaitlistStore(): WaitlistEntry[] { return waitlistEntries; }
+export function getProgramsStore(): Program[] { return programs; }
 
 export function setEventsStore(e: CareerMazeEvent[]) { events = e; }
 export function setSessionsStore(s: Session[]) { sessions = s; }
 export function setBookingsStore(b: Booking[]) { bookings = b; }
 export function setWaitlistStore(w: WaitlistEntry[]) { waitlistEntries = w; }
+export function setProgramsStore(p: Program[]) { programs = p; }
 
 export function addSession(s: Session) { sessions.push(s); }
 export function addEvent(e: CareerMazeEvent) { events.push(e); }
 export function addBooking(b: Booking) { bookings.push(b); }
 export function addWaitlistEntry(w: WaitlistEntry) { waitlistEntries.push(w); }
+export function addProgram(p: Program) { programs.push(p); }
 
 export function removeSessionsById(ids: Set<string>) { sessions = sessions.filter((s) => !ids.has(s.id)); }
 export function removeWaitlistEntry(id: string) { waitlistEntries = waitlistEntries.filter((w) => w.id !== id); }

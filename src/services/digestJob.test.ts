@@ -32,7 +32,7 @@ describe('runDigestJob', () => {
 
     expect(stats.totalBookings).toBe(0);
     expect(stats.fullSessions).toBe(0);
-    expect(stats.emptySessions).toBe(360);
+    expect(stats.emptySessions).toBe(300);
     expect(stats.waitlistCount).toBe(0);
   });
 
@@ -54,7 +54,7 @@ describe('runDigestJob', () => {
 
     expect(stats.totalBookings).toBe(3);
     expect(stats.fullSessions).toBe(1);
-    expect(stats.emptySessions).toBe(359);
+    expect(stats.emptySessions).toBe(299);
     expect(stats.waitlistCount).toBe(1);
   });
 

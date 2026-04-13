@@ -26,7 +26,7 @@ describe('Feature: career-maze-booking, Property 7: Calendar invite round-trip',
      */
     fc.assert(
       fc.property(
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         fc.string({ minLength: 1, maxLength: 50 }),
         fc.emailAddress(),
         fc.string({ minLength: 1, maxLength: 50 }),

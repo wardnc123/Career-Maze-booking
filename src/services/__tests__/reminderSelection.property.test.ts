@@ -56,7 +56,7 @@ describe('Feature: career-maze-booking, Property 9: Reminder job selects correct
         // Generate random bookings: pick random session indices and unique emails
         fc.array(
           fc.record({
-            sessionIndex: fc.integer({ min: 0, max: 359 }),
+            sessionIndex: fc.integer({ min: 0, max: 299 }),
             attendeeIndex: fc.integer({ min: 0, max: 99 }),
           }),
           { minLength: 0, maxLength: 20 },

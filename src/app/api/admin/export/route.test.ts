@@ -44,7 +44,7 @@ describe('GET /api/admin/export', () => {
 
     const csv = await res.text();
     const lines = csv.split('\n');
-    expect(lines[0]).toBe('Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status');
+    expect(lines[0]).toBe('Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status,Program');
     expect(lines).toHaveLength(1);
   });
 

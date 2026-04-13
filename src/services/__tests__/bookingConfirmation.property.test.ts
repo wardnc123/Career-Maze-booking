@@ -31,7 +31,7 @@ describe('Feature: career-maze-booking, Property 8: Booking confirmation contain
         fc.emailAddress(),
         fc.string({ minLength: 1, maxLength: 50 }),
         fc.string({ minLength: 1, maxLength: 20 }),
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         async (name, email, role, pf, sessionIndex) => {
           // Reset stores for each iteration to ensure isolation
           resetBookingStore();

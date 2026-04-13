@@ -23,11 +23,26 @@ export async function initDb() {
   try {
     const sql = getDb();
     console.log('[db] Initializing tables...');
+    await sql`CREATE TABLE IF NOT EXISTS programs (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      logo_url TEXT,
+      brand_color TEXT NOT NULL DEFAULT '#1a1a2e',
+      session_duration_minutes INTEGER NOT NULL DEFAULT 180,
+      slot_interval_minutes INTEGER NOT NULL DEFAULT 15,
+      max_attendees INTEGER NOT NULL DEFAULT 3,
+      custom_form_fields JSONB NOT NULL DEFAULT '[]',
+      calendar_invite_title_template TEXT NOT NULL DEFAULT '{programName} Session — {userName}',
+      email_templates JSONB NOT NULL DEFAULT '{}',
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`;
     await sql`CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       location TEXT DEFAULT '',
       timezone TEXT DEFAULT 'Europe/London',
+      program_id TEXT REFERENCES programs(id),
       dates JSONB NOT NULL DEFAULT '[]',
       time_slots JSONB NOT NULL DEFAULT '[]',
       created_at TIMESTAMPTZ DEFAULT NOW()
@@ -38,6 +53,7 @@ export async function initDb() {
       session_date TEXT NOT NULL,
       start_time TEXT NOT NULL,
       booking_count INT DEFAULT 0,
+      max_attendees INTEGER NOT NULL DEFAULT 3,
       slot_status TEXT DEFAULT 'Available',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
@@ -50,6 +66,7 @@ export async function initDb() {
       pf TEXT NOT NULL,
       status TEXT DEFAULT 'confirmed',
       reference_code TEXT NOT NULL,
+      custom_fields JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       cancelled_at TIMESTAMPTZ
     )`;

@@ -72,7 +72,7 @@ describe('Feature: career-maze-booking, Property 16: Booking API round-trip', ()
         fc.emailAddress(),
         roleArb,
         pfArb,
-        fc.integer({ min: 0, max: 359 }),
+        fc.integer({ min: 0, max: 299 }),
         async (name, email, role, pf, sessionIndex) => {
           // Reset state for each iteration to avoid overlap/duplicate rejections
           resetBookingStore();

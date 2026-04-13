@@ -33,7 +33,7 @@ describe('Feature: career-maze-booking, Property 13: Booking search returns matc
         // Generate a small set of bookings with random data
         fc.array(
           fc.record({
-            sessionIndex: fc.integer({ min: 0, max: 359 }),
+            sessionIndex: fc.integer({ min: 0, max: 299 }),
             name: fc.string({ minLength: 1, maxLength: 30 }),
             email: fc.emailAddress(),
             pf: fc.string({ minLength: 1, maxLength: 10 }),

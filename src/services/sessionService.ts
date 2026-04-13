@@ -58,7 +58,7 @@ function generateDateRange(): string[] {
 import {
   getEventsStore, getSessionsStore,
   addEvent as dmAddEvent, addSession as dmAddSession,
-  setSessionsStore, removeSessionsById,
+  setSessionsStore, setEventsStore, removeSessionsById,
 } from '@/lib/dataManager';
 
 // Convenience getters that return the live arrays from dataManager
@@ -73,13 +73,18 @@ let initialized = false;
  * Create a new event with custom dates, time slots, and title.
  * Returns the created event and its sessions.
  */
-export function createEvent(title: string, dates: string[], timeSlots: string[], location: string = '', timezone: string = 'Europe/London'): { event: CareerMazeEvent; sessions: Session[] } {
+export function createEvent(
+  title: string, dates: string[], timeSlots: string[],
+  location: string = '', timezone: string = 'Europe/London',
+  programId: string = 'default-career-maze', maxAttendees: number = 3
+): { event: CareerMazeEvent; sessions: Session[] } {
   const eventId = uuidv4();
   const event: CareerMazeEvent = {
     id: eventId,
     title,
     location,
     timezone,
+    programId,
     dates: [...dates].sort(),
     timeSlots: [...timeSlots].sort(),
     createdAt: new Date(),
@@ -93,6 +98,7 @@ export function createEvent(title: string, dates: string[], timeSlots: string[],
         id: uuidv4(), eventId, sessionDate: date,
         startTime: localTime + ':00',  // Store as local time HH:MM:SS in event timezone
         bookingCount: 0,
+        maxAttendees,
         slotStatus: 'Available' as SlotStatus, createdAt: new Date(),
       };
       generated.push(session);
@@ -131,7 +137,7 @@ export function deleteEvent(eventId: string): boolean {
  */
 export function updateEvent(
   eventId: string,
-  updates: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[] }
+  updates: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; maxAttendees?: number }
 ): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number } | null {
   const event = getEvents_().find((e) => e.id === eventId);
   if (!event) return null;
@@ -175,6 +181,7 @@ export function updateEvent(
   }
 
   // Add sessions for new combos that don't exist yet
+  const newMaxAttendees = updates.maxAttendees ?? 3;
   for (const combo of desiredCombos) {
     if (!existingCombos.has(combo)) {
       const parts = combo.split('|');
@@ -184,6 +191,7 @@ export function updateEvent(
         sessionDate: parts[0],
         startTime: parts[1],
         bookingCount: 0,
+        maxAttendees: newMaxAttendees,
         slotStatus: 'Available' as SlotStatus,
         createdAt: new Date(),
       });
@@ -200,6 +208,9 @@ export function updateEvent(
 // ─── Default session generation (for tests) ─────────────────────────────────
 
 export function generateSessions(): Session[] {
+  // Clear existing events and sessions to prevent accumulation across test runs
+  setEventsStore([]);
+  setSessionsStore([]);
   const dates = generateDateRange();
   const { sessions: generated } = createEvent('Career Maze August 2026', dates, [...ALL_SLOTS_LONDON]);
   initialized = true;

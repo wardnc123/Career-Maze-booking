@@ -46,7 +46,7 @@ describe('GET /api/admin/stats', () => {
     const body = await res.json();
     expect(body.totalBookings).toBe(0);
     expect(body.fullSessions).toBe(0);
-    expect(body.emptySessions).toBe(360);
+    expect(body.emptySessions).toBe(300);
     expect(body.waitlistCount).toBe(0);
   });
 
@@ -61,6 +61,6 @@ describe('GET /api/admin/stats', () => {
     const body = await res.json();
     expect(body.totalBookings).toBe(3);
     expect(body.fullSessions).toBe(1);
-    expect(body.emptySessions).toBe(359);
+    expect(body.emptySessions).toBe(299);
   });
 });
