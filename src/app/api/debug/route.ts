@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDbUrl } from '@/lib/db';
+import { getDbUrl, getDb } from '@/lib/db';
 import { noCacheHeaders } from '@/lib/apiHeaders';
 
 export async function GET() {
@@ -25,4 +25,21 @@ export async function GET() {
   }
 
   return NextResponse.json({ envVars, dbStatus, dbUrlFound: !!dbUrl }, { headers: noCacheHeaders });
+}
+
+/**
+ * POST /api/debug — Clean all data from the database (programs, events, sessions, bookings, waitlist)
+ */
+export async function POST() {
+  try {
+    const sql = getDb();
+    await sql`DELETE FROM waitlist`;
+    await sql`DELETE FROM bookings`;
+    await sql`DELETE FROM sessions`;
+    await sql`DELETE FROM events`;
+    await sql`DELETE FROM programs`;
+    return NextResponse.json({ message: 'All data cleared' }, { headers: noCacheHeaders });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500, headers: noCacheHeaders });
+  }
 }
