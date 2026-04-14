@@ -101,7 +101,7 @@ function AdminSetupContent() {
         setResultMessage(`"${title.trim()}" created with ${data.totalSessions} sessions.`);
         setPageState('success');
       } else {
-        setErrorMessage(data.error || 'Failed to create event.');
+        setErrorMessage(data.detail ? `${data.error}: ${data.detail}` : (data.error || 'Failed to create event.'));
         setPageState('error');
       }
     } catch {

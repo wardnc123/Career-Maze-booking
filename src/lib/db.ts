@@ -42,11 +42,23 @@ export async function initDb() {
       title TEXT NOT NULL,
       location TEXT DEFAULT '',
       timezone TEXT DEFAULT 'Europe/London',
-      program_id TEXT REFERENCES programs(id),
+      program_id TEXT,
       dates JSONB NOT NULL DEFAULT '[]',
       time_slots JSONB NOT NULL DEFAULT '[]',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
+    // Ensure program_id column exists on events table (may have been created before programs feature)
+    try {
+      await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS program_id TEXT`;
+    } catch { /* column already exists */ }
+    // Ensure max_attendees column exists on sessions table
+    try {
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS max_attendees INTEGER NOT NULL DEFAULT 3`;
+    } catch { /* column already exists */ }
+    // Ensure custom_fields column exists on bookings table
+    try {
+      await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS custom_fields JSONB`;
+    } catch { /* column already exists */ }
     await sql`CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       event_id TEXT NOT NULL,
