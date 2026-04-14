@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
 const ALL_TIME_SLOTS = [
@@ -32,6 +33,16 @@ function getDatesInRange(start: string, end: string): string[] {
 }
 
 export default function AdminSetupPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-white"><p className="text-gray-600">Loading…</p></main>}>
+      <AdminSetupContent />
+    </Suspense>
+  );
+}
+
+function AdminSetupContent() {
+  const searchParams = useSearchParams();
+  const programId = searchParams.get('programId') || 'default-career-maze';
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [timezone, setTimezone] = useState('Europe/London');
@@ -83,7 +94,7 @@ export default function AdminSetupPage() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort() }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort(), programId }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -108,7 +119,7 @@ export default function AdminSetupPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-2">Event Created</h2>
           <p className="text-gray-600 mb-6">{resultMessage}</p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <a href="/admin" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
+            <a href={programId !== 'default-career-maze' ? `/admin/programs/${programId}` : '/admin'} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
             <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
           </div>
         </div>

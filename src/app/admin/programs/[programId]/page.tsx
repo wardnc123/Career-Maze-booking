@@ -165,7 +165,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pb-3 sm:px-6 lg:px-8 flex gap-3 flex-wrap">
-          <a href="/admin/setup" className="text-sm opacity-75 hover:opacity-100 transition-opacity">+ Create New Event</a>
+          <a href={`/admin/setup?programId=${programId}`} className="text-sm opacity-75 hover:opacity-100 transition-opacity">+ Create New Event</a>
           <button onClick={() => router.push(`/admin/programs/${programId}/settings`)} className="text-sm opacity-75 hover:opacity-100 transition-opacity">⚙️ Settings</button>
           <button onClick={() => router.push('/admin/programs')} className="text-sm opacity-75 hover:opacity-100 transition-opacity">← All Programs</button>
         </div>
