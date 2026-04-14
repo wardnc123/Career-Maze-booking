@@ -115,11 +115,26 @@ export async function deleteEventFromDb(eventId: string) {
 
 export async function deleteProgramFromDb(programId: string) {
   const sql = getDb();
-  await sql`DELETE FROM waitlist WHERE session_id IN (SELECT id FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId}))`;
-  await sql`DELETE FROM bookings WHERE session_id IN (SELECT id FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId}))`;
-  await sql`DELETE FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId})`;
-  await sql`DELETE FROM events WHERE program_id = ${programId}`;
-  await sql`DELETE FROM programs WHERE id = ${programId}`;
+  try {
+    // Delete in correct order to respect foreign key constraints
+    await sql`DELETE FROM waitlist WHERE session_id IN (SELECT id FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId}))`;
+    await sql`DELETE FROM bookings WHERE session_id IN (SELECT id FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId}))`;
+    await sql`DELETE FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId})`;
+    await sql`DELETE FROM events WHERE program_id = ${programId}`;
+    await sql`DELETE FROM programs WHERE id = ${programId}`;
+  } catch (err) {
+    console.error('[persistence] deleteProgramFromDb error:', err);
+    // If cascading delete fails, try removing the foreign key constraint and force delete
+    try {
+      await sql`UPDATE events SET program_id = NULL WHERE program_id = ${programId}`;
+    } catch { /* column might not be nullable, ignore */ }
+    try {
+      await sql`DELETE FROM programs WHERE id = ${programId}`;
+    } catch (err2) {
+      console.error('[persistence] force delete program error:', err2);
+      throw err2;
+    }
+  }
 }
 
 export async function deleteSessionsFromDb(sessionIds: string[]) {
