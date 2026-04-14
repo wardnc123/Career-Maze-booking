@@ -6,6 +6,14 @@ import {
   getProgramsStore,
   addProgram,
   persistProgram,
+  getEventsStore,
+  getSessionsStore,
+  getBookingsStore,
+  getWaitlistStore,
+  setEventsStore,
+  setSessionsStore,
+  setBookingsStore,
+  setWaitlistStore,
 } from '@/lib/dataManager';
 import type {
   Program,
@@ -202,5 +210,17 @@ export function deleteProgram(programId: string): boolean {
   const index = programs.findIndex((p) => p.id === programId);
   if (index === -1) return false;
   programs.splice(index, 1);
+
+  // Clean up in-memory events, sessions, bookings, and waitlist for this program
+  const events = getEventsStore();
+  const programEventIds = new Set(events.filter((e) => e.programId === programId).map((e) => e.id));
+  const sessions = getSessionsStore();
+  const programSessionIds = new Set(sessions.filter((s) => programEventIds.has(s.eventId)).map((s) => s.id));
+
+  setEventsStore(events.filter((e) => e.programId !== programId));
+  setSessionsStore(sessions.filter((s) => !programEventIds.has(s.eventId)));
+  setBookingsStore(getBookingsStore().filter((b) => !programSessionIds.has(b.sessionId)));
+  setWaitlistStore(getWaitlistStore().filter((w) => !programSessionIds.has(w.sessionId)));
+
   return true;
 }
