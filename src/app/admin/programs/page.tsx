@@ -141,6 +141,18 @@ export default function AdminProgramsPage() {
                 program={program}
                 onClick={() => router.push(`/admin/programs/${program.id}`)}
                 onSettings={() => router.push(`/admin/programs/${program.id}/settings`)}
+                onDelete={async () => {
+                  if (!confirm(`Delete "${program.name}" and all its events, sessions, and bookings? This cannot be undone.`)) return;
+                  try {
+                    const res = await fetch(`/api/programs/${program.id}`, { method: 'DELETE' });
+                    if (res.ok) {
+                      setPrograms(prev => prev.filter(p => p.id !== program.id));
+                    } else {
+                      const data = await res.json();
+                      alert(data.error || 'Failed to delete program');
+                    }
+                  } catch { alert('Network error'); }
+                }}
               />
             ))}
           </div>
@@ -154,10 +166,12 @@ function ProgramCard({
   program,
   onClick,
   onSettings,
+  onDelete,
 }: {
   program: ProgramCardData;
   onClick: () => void;
   onSettings: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div
@@ -213,12 +227,20 @@ function ProgramCard({
           </div>
         </div>
 
-        <button
-          onClick={(e) => { e.stopPropagation(); onSettings(); }}
-          className="w-full px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-        >
-          Settings
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); onSettings(); }}
+            className="flex-1 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+          >
+            Settings
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );

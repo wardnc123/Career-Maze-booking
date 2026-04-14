@@ -113,6 +113,15 @@ export async function deleteEventFromDb(eventId: string) {
   await sql`DELETE FROM events WHERE id = ${eventId}`;
 }
 
+export async function deleteProgramFromDb(programId: string) {
+  const sql = getDb();
+  await sql`DELETE FROM waitlist WHERE session_id IN (SELECT id FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId}))`;
+  await sql`DELETE FROM bookings WHERE session_id IN (SELECT id FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId}))`;
+  await sql`DELETE FROM sessions WHERE event_id IN (SELECT id FROM events WHERE program_id = ${programId})`;
+  await sql`DELETE FROM events WHERE program_id = ${programId}`;
+  await sql`DELETE FROM programs WHERE id = ${programId}`;
+}
+
 export async function deleteSessionsFromDb(sessionIds: string[]) {
   if (sessionIds.length === 0) return;
   const sql = getDb();

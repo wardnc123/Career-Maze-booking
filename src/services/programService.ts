@@ -196,3 +196,11 @@ export function getProgramByName(name: string): Program | null {
     null
   );
 }
+
+export function deleteProgram(programId: string): boolean {
+  const programs = getProgramsStore();
+  const index = programs.findIndex((p) => p.id === programId);
+  if (index === -1) return false;
+  programs.splice(index, 1);
+  return true;
+}

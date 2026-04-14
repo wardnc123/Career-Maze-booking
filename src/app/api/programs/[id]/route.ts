@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProgram, updateProgram } from '@/services/programService';
-import { ensureLoaded, persistProgram } from '@/lib/dataManager';
+import { getProgram, updateProgram, deleteProgram } from '@/services/programService';
+import { ensureLoaded, persistProgram, persistDeleteProgram } from '@/lib/dataManager';
 import { noCacheHeaders } from '@/lib/apiHeaders';
 
 /**
@@ -55,5 +55,30 @@ export async function PUT(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update program';
     return NextResponse.json({ error: message }, { status: 400, headers: noCacheHeaders });
+  }
+}
+
+/**
+ * DELETE /api/programs/[id] — Delete a program and all its events/sessions/bookings
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  await ensureLoaded();
+  const { id } = await params;
+
+  const program = getProgram(id);
+  if (!program) {
+    return NextResponse.json({ error: 'Program not found' }, { status: 404, headers: noCacheHeaders });
+  }
+
+  try {
+    deleteProgram(id);
+    await persistDeleteProgram(id);
+    return NextResponse.json({ message: 'Program deleted' }, { headers: noCacheHeaders });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete program';
+    return NextResponse.json({ error: message }, { status: 500, headers: noCacheHeaders });
   }
 }
