@@ -290,7 +290,14 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                                 <button onClick={async () => {
                                   if (!confirm(`Remove ${b.name} (${b.email}) from this ${b.isWaitlisted ? 'waitlist' : 'session'}?`)) return;
                                   setAllBookings(prev => prev.filter(x => x.id !== b.id));
-                                  fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' }).catch(() => {});
+                                  await fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
+                                  // Re-fetch to see waitlist promotions
+                                  const res = await fetch('/api/admin/bookings', { cache: 'no-store' });
+                                  if (res.ok) {
+                                    const fresh: AdminBooking[] = await res.json();
+                                    const eventTitles = new Set(events.filter(ev => ev.programId === programId).map(ev => ev.title));
+                                    setAllBookings(fresh.filter(fb => eventTitles.has(fb.eventTitle)));
+                                  }
                                 }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
                               </td>
                             </tr>
