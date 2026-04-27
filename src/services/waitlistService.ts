@@ -73,6 +73,7 @@ export async function promoteNext(sessionId: string): Promise<Booking | null> {
     status: 'confirmed',
     referenceCode: generateReferenceCode(),
     customFields: null,
+    promotedFromWaitlist: true,
     createdAt: new Date(),
     cancelledAt: null,
   };

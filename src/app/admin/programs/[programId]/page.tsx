@@ -27,7 +27,8 @@ function getRowColor(count: number, max: number): string {
 
 interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
-  status: string; referenceCode: string; sessionDate: string; startTime: string;
+  status: string; referenceCode: string; promotedFromWaitlist: boolean;
+  sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
 
@@ -232,6 +233,22 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
             Export CSV
           </button>
           <span className="text-sm text-gray-500">{allBookings.filter(b => b.status === 'confirmed').length} confirmed bookings</span>
+          <button onClick={() => {
+            const filtered = allBookings.filter(b => b.status === 'confirmed' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
+            const emails = [...new Set(filtered.map(b => b.email))].join('; ');
+            navigator.clipboard.writeText(emails).then(() => alert(`Copied ${filtered.length} email(s) to clipboard`)).catch(() => alert('Failed to copy'));
+          }} className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+            📋 Copy All Emails
+          </button>
+          {allBookings.some(b => b.promotedFromWaitlist && b.status === 'confirmed') && (
+            <button onClick={() => {
+              const promoted = allBookings.filter(b => b.promotedFromWaitlist && b.status === 'confirmed' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
+              const emails = [...new Set(promoted.map(b => b.email))].join('; ');
+              navigator.clipboard.writeText(emails).then(() => alert(`Copied ${promoted.length} promoted attendee email(s) to clipboard`)).catch(() => alert('Failed to copy'));
+            }} className="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">
+              📋 Copy Promoted Emails
+            </button>
+          )}
         </div>
 
         {showAttendees && allBookings.length > 0 && (
@@ -249,9 +266,12 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
               </thead>
               <tbody>
                 {allBookings.filter(b => b.status !== 'cancelled' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle))).map(b => (
-                  <tr key={b.id} className="border-b border-gray-100 last:border-0">
+                  <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.promotedFromWaitlist ? 'bg-purple-50' : ''}`}>
                     <td className="px-3 py-2 text-xs">{b.eventTitle}</td>
-                    <td className="px-3 py-2">{b.name}</td>
+                    <td className="px-3 py-2">
+                      {b.name}
+                      {b.promotedFromWaitlist && <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-medium">promoted</span>}
+                    </td>
                     <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
                     <td className="px-3 py-2">{b.sessionDate}</td>
                     <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>

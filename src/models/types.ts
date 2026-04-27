@@ -68,6 +68,7 @@ export interface Booking {
   status: BookingStatus;
   referenceCode: string;
   customFields: Record<string, string> | null;
+  promotedFromWaitlist?: boolean;
   createdAt: Date;
   cancelledAt: Date | null;
 }

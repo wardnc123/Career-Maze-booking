@@ -99,7 +99,7 @@ export async function cancelBooking(bookingId: string, email: string): Promise<v
     if (waitlist.length > 0) {
       const promoted = waitlist[0];
       dmRemoveWaitlistEntry(promoted.id);
-      const promotedBooking: Booking = { id: uuidv4(), sessionId: promoted.sessionId, name: promoted.name, email: promoted.email, role: promoted.role, pf: promoted.pf, status: 'confirmed', referenceCode: generateReferenceCode(), customFields: null, createdAt: new Date(), cancelledAt: null };
+      const promotedBooking: Booking = { id: uuidv4(), sessionId: promoted.sessionId, name: promoted.name, email: promoted.email, role: promoted.role, pf: promoted.pf, status: 'confirmed', referenceCode: generateReferenceCode(), customFields: null, promotedFromWaitlist: true, createdAt: new Date(), cancelledAt: null };
       dmAddBooking(promotedBooking);
       session.bookingCount += 1;
       if (notificationService) fireNotification(() => notificationService!.sendWaitlistPromotion(promotedBooking, session));

@@ -13,6 +13,7 @@ export async function GET() {
     return {
       id: b.id, name: b.name, email: b.email, role: b.role, pf: b.pf,
       status: b.status, referenceCode: b.referenceCode,
+      promotedFromWaitlist: b.promotedFromWaitlist || false,
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
     };
