@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAllBookings } from '@/services/bookingService';
+import { getAllBookings, getAllWaitlistEntries } from '@/services/bookingService';
 import { getSession, getEvent } from '@/services/sessionService';
 import { ensureLoaded } from '@/lib/dataManager';
 import { noCacheHeaders } from '@/lib/apiHeaders';
@@ -7,16 +7,33 @@ import { noCacheHeaders } from '@/lib/apiHeaders';
 export async function GET() {
   await ensureLoaded();
   const bookings = getAllBookings();
-  const enriched = bookings.map(b => {
+  const waitlist = getAllWaitlistEntries();
+
+  const enrichedBookings = bookings.map(b => {
     const session = getSession(b.sessionId);
     const event = session ? getEvent(session.eventId) : null;
     return {
       id: b.id, name: b.name, email: b.email, role: b.role, pf: b.pf,
       status: b.status, referenceCode: b.referenceCode,
       promotedFromWaitlist: b.promotedFromWaitlist || false,
+      isWaitlisted: false,
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
     };
   });
-  return NextResponse.json(enriched, { headers: noCacheHeaders });
+
+  const enrichedWaitlist = waitlist.map(w => {
+    const session = getSession(w.sessionId);
+    const event = session ? getEvent(session.eventId) : null;
+    return {
+      id: w.id, name: w.name, email: w.email, role: w.role, pf: w.pf,
+      status: 'waitlisted' as string, referenceCode: '',
+      promotedFromWaitlist: false,
+      isWaitlisted: true,
+      sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
+      eventTitle: event?.title || '', eventLocation: event?.location || '',
+    };
+  });
+
+  return NextResponse.json([...enrichedBookings, ...enrichedWaitlist], { headers: noCacheHeaders });
 }

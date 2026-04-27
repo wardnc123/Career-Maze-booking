@@ -28,6 +28,7 @@ function getRowColor(count: number, max: number): string {
 interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
+  isWaitlisted: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
@@ -252,36 +253,53 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
         </div>
 
         {showAttendees && allBookings.length > 0 && (
-          <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium text-gray-700">Event</th>
-                  <th className="text-left px-3 py-2 font-medium text-gray-700">Name</th>
-                  <th className="text-left px-3 py-2 font-medium text-gray-700">Email</th>
-                  <th className="text-left px-3 py-2 font-medium text-gray-700">Date</th>
-                  <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
-                  <th className="text-left px-3 py-2 font-medium text-gray-700">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allBookings.filter(b => b.status !== 'cancelled' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle))).map(b => (
-                  <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.promotedFromWaitlist ? 'bg-purple-50' : ''}`}>
-                    <td className="px-3 py-2 text-xs">{b.eventTitle}</td>
-                    <td className="px-3 py-2">
-                      {b.name}
-                      {b.promotedFromWaitlist && <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-medium">promoted</span>}
-                    </td>
-                    <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
-                    <td className="px-3 py-2">{b.sessionDate}</td>
-                    <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>
-                    <td className="px-3 py-2">
-                      <button onClick={async () => { if (!confirm(`Remove ${b.name} (${b.email}) from this session?`)) return; setAllBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'cancelled' } : x)); fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' }).catch(() => {}); }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mb-6">
+            {(() => {
+              const filtered = allBookings.filter(b => b.status !== 'cancelled' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
+              const dates = [...new Set(filtered.map(b => b.sessionDate))].sort();
+              return dates.map(date => {
+                const dateBookings = filtered.filter(b => b.sessionDate === date);
+                return (
+                  <div key={date} className="mb-4">
+                    <div className="bg-gray-100 px-3 py-2 rounded-t-lg border border-gray-200 border-b-0">
+                      <h4 className="font-semibold text-gray-800 text-sm">{formatDateLabel(date)} — {dateBookings.length} attendee{dateBookings.length !== 1 ? 's' : ''}</h4>
+                    </div>
+                    <div className="border border-gray-200 rounded-b-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">Name</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">Email</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">Status</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dateBookings.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(b => (
+                            <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.isWaitlisted ? 'bg-amber-50' : b.promotedFromWaitlist ? 'bg-purple-50' : ''}`}>
+                              <td className="px-3 py-2">{b.name}</td>
+                              <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
+                              <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>
+                              <td className="px-3 py-2">
+                                {b.isWaitlisted && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded font-medium">waitlisted</span>}
+                                {b.promotedFromWaitlist && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-medium">promoted</span>}
+                                {!b.isWaitlisted && !b.promotedFromWaitlist && b.status === 'confirmed' && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded font-medium">confirmed</span>}
+                              </td>
+                              <td className="px-3 py-2">
+                                {!b.isWaitlisted && (
+                                  <button onClick={async () => { if (!confirm(`Remove ${b.name} (${b.email}) from this session?`)) return; setAllBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'cancelled' } : x)); fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' }).catch(() => {}); }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
 
