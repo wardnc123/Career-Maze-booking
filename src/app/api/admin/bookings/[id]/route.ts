@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cancelBooking, getAllBookings, getAllWaitlistEntries } from '@/services/bookingService';
+import { cancelBooking, getAllBookings, getAllWaitlistEntries, getWaitlistForSession } from '@/services/bookingService';
 import { getSession } from '@/services/sessionService';
+import { deriveSlotStatus } from '@/lib/slotStatus';
 import { ensureLoaded, persistBooking, persistSession, persistDeleteWaitlist } from '@/lib/dataManager';
 import { noCacheHeaders } from '@/lib/apiHeaders';
-import { getWaitlistStore } from '@/lib/dataManager';
+import { getWaitlistStore, getBookingsStore } from '@/lib/dataManager';
 
 /**
  * DELETE /api/admin/bookings/:id
@@ -25,6 +26,13 @@ export async function DELETE(
     if (idx !== -1) waitlist.splice(idx, 1);
     // Remove from database
     await persistDeleteWaitlist(id);
+    // Update session slot status (may change from Waitlisted to Full)
+    const session = getSession(waitlistEntry.sessionId);
+    if (session) {
+      const remainingWaitlist = getWaitlistForSession(waitlistEntry.sessionId);
+      session.slotStatus = deriveSlotStatus(session.bookingCount, remainingWaitlist.length, session.maxAttendees);
+      await persistSession(session);
+    }
     return NextResponse.json({ message: 'Waitlist entry removed by admin' }, { headers: noCacheHeaders });
   }
 
@@ -35,10 +43,20 @@ export async function DELETE(
 
   try {
     await cancelBooking(id, booking.email);
+
+    // Persist the cancelled booking
     const updated = getAllBookings().find((b) => b.id === id);
     if (updated) await persistBooking(updated);
+
+    // Persist the session (updated booking count and slot status)
     const session = getSession(booking.sessionId);
     if (session) await persistSession(session);
+
+    // If a waitlisted person was promoted, persist their new booking too
+    const promotedBooking = getBookingsStore().find(
+      (b) => b.sessionId === booking.sessionId && b.promotedFromWaitlist && b.status === 'confirmed' && b.createdAt.getTime() > Date.now() - 5000
+    );
+    if (promotedBooking) await persistBooking(promotedBooking);
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
   }
