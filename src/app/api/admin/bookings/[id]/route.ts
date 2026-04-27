@@ -41,22 +41,40 @@ export async function DELETE(
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
   if (booking.status === 'cancelled') return NextResponse.json({ error: 'Already cancelled' }, { status: 409 });
 
+  // Check if we should skip waitlist promotion (force free the slot)
+  const url = new URL(_request.url);
+  const skipPromotion = url.searchParams.get('skipPromotion') === 'true';
+
   try {
-    await cancelBooking(id, booking.email);
+    if (skipPromotion) {
+      // Directly cancel without promoting from waitlist
+      booking.status = 'cancelled';
+      booking.cancelledAt = new Date();
+      const session = getSession(booking.sessionId);
+      if (session) {
+        session.bookingCount -= 1;
+        session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(booking.sessionId).length, session.maxAttendees);
+        await persistSession(session);
+      }
+      await persistBooking(booking);
+    } else {
+      // Normal cancel with waitlist promotion
+      await cancelBooking(id, booking.email);
 
-    // Persist the cancelled booking
-    const updated = getAllBookings().find((b) => b.id === id);
-    if (updated) await persistBooking(updated);
+      // Persist the cancelled booking
+      const updated = getAllBookings().find((b) => b.id === id);
+      if (updated) await persistBooking(updated);
 
-    // Persist the session (updated booking count and slot status)
-    const session = getSession(booking.sessionId);
-    if (session) await persistSession(session);
+      // Persist the session (updated booking count and slot status)
+      const session = getSession(booking.sessionId);
+      if (session) await persistSession(session);
 
-    // If a waitlisted person was promoted, persist their new booking too
-    const promotedBooking = getBookingsStore().find(
-      (b) => b.sessionId === booking.sessionId && b.promotedFromWaitlist && b.status === 'confirmed' && b.createdAt.getTime() > Date.now() - 5000
-    );
-    if (promotedBooking) await persistBooking(promotedBooking);
+      // If a waitlisted person was promoted, persist their new booking too
+      const promotedBooking = getBookingsStore().find(
+        (b) => b.sessionId === booking.sessionId && b.promotedFromWaitlist && b.status === 'confirmed' && b.createdAt.getTime() > Date.now() - 5000
+      );
+      if (promotedBooking) await persistBooking(promotedBooking);
+    }
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
   }

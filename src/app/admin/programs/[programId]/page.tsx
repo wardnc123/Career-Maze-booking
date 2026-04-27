@@ -290,8 +290,8 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                                 <button onClick={async () => {
                                   if (!confirm(`Remove ${b.name} (${b.email}) from this ${b.isWaitlisted ? 'waitlist' : 'session'}?`)) return;
                                   setAllBookings(prev => prev.filter(x => x.id !== b.id));
-                                  await fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
-                                  // Re-fetch to see waitlist promotions
+                                  await fetch(`/api/admin/bookings/${b.id}?skipPromotion=true`, { method: 'DELETE' });
+                                  // Re-fetch to see updated state
                                   const res = await fetch('/api/admin/bookings', { cache: 'no-store' });
                                   if (res.ok) {
                                     const fresh: AdminBooking[] = await res.json();
