@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cancelBooking, getAllBookings } from '@/services/bookingService';
+import { cancelBooking, getAllBookings, getAllWaitlistEntries } from '@/services/bookingService';
 import { getSession } from '@/services/sessionService';
-import { ensureLoaded, persistBooking, persistSession } from '@/lib/dataManager';
+import { ensureLoaded, persistBooking, persistSession, persistDeleteWaitlist } from '@/lib/dataManager';
 import { noCacheHeaders } from '@/lib/apiHeaders';
+import { getWaitlistStore } from '@/lib/dataManager';
 
 /**
  * DELETE /api/admin/bookings/:id
- * Admin cancellation — no email verification needed.
+ * Admin cancellation — handles both bookings and waitlist entries.
  */
 export async function DELETE(
   _request: NextRequest,
@@ -15,15 +16,25 @@ export async function DELETE(
   await ensureLoaded();
   const { id } = await params;
 
+  // Check if it's a waitlist entry first
+  const waitlistEntry = getAllWaitlistEntries().find((w) => w.id === id);
+  if (waitlistEntry) {
+    // Remove from in-memory waitlist
+    const waitlist = getWaitlistStore();
+    const idx = waitlist.findIndex((w) => w.id === id);
+    if (idx !== -1) waitlist.splice(idx, 1);
+    // Remove from database
+    await persistDeleteWaitlist(id);
+    return NextResponse.json({ message: 'Waitlist entry removed by admin' }, { headers: noCacheHeaders });
+  }
+
+  // Otherwise handle as a booking
   const booking = getAllBookings().find((b) => b.id === id);
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
   if (booking.status === 'cancelled') return NextResponse.json({ error: 'Already cancelled' }, { status: 409 });
 
   try {
-    // Use the booking's own email to pass the verification check
     await cancelBooking(id, booking.email);
-
-    // Persist changes
     const updated = getAllBookings().find((b) => b.id === id);
     if (updated) await persistBooking(updated);
     const session = getSession(booking.sessionId);
