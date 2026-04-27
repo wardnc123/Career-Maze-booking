@@ -51,6 +51,7 @@ function AdminSetupContent() {
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
   const [slotMode, setSlotMode] = useState<'quick' | 'custom'>('quick');
   const [customRanges, setCustomRanges] = useState<Array<{ start: string; end: string }>>([]);
+  const [maxAttendees, setMaxAttendees] = useState(3);
   const [pageState, setPageState] = useState<PageState>('form');
   const [resultMessage, setResultMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -108,7 +109,7 @@ function AdminSetupContent() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId, maxAttendees }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -278,6 +279,19 @@ function AdminSetupContent() {
               <p className="mt-2 text-sm text-gray-500">{customRanges.length} custom slot{customRanges.length !== 1 ? 's' : ''} defined</p>
             </>
           )}
+        </section>
+
+        {/* Max Attendees */}
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">6. Max attendees per session</h3>
+          <input
+            type="number"
+            min="1"
+            value={maxAttendees}
+            onChange={(e) => setMaxAttendees(Math.max(1, Number(e.target.value)))}
+            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
+          />
+          <p className="text-xs text-gray-500 mt-1">How many people can book each time slot before it becomes full.</p>
         </section>
 
         {/* Summary */}
