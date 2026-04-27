@@ -58,6 +58,9 @@ export async function DELETE(
       }
       await persistBooking(booking);
     } else {
+      // Capture waitlist before cancellation to track who gets promoted
+      const waitlistBefore = getWaitlistForSession(booking.sessionId);
+
       // Normal cancel with waitlist promotion
       await cancelBooking(id, booking.email);
 
@@ -69,11 +72,16 @@ export async function DELETE(
       const session = getSession(booking.sessionId);
       if (session) await persistSession(session);
 
-      // If a waitlisted person was promoted, persist their new booking too
-      const promotedBooking = getBookingsStore().find(
-        (b) => b.sessionId === booking.sessionId && b.promotedFromWaitlist && b.status === 'confirmed' && b.createdAt.getTime() > Date.now() - 5000
-      );
-      if (promotedBooking) await persistBooking(promotedBooking);
+      // If a waitlisted person was promoted, persist their new booking and delete their waitlist entry from DB
+      if (waitlistBefore.length > 0) {
+        const promotedEntry = waitlistBefore[0]; // first in queue gets promoted
+        await persistDeleteWaitlist(promotedEntry.id);
+
+        const promotedBooking = getBookingsStore().find(
+          (b) => b.sessionId === booking.sessionId && b.promotedFromWaitlist && b.status === 'confirmed' && b.email.toLowerCase() === promotedEntry.email.toLowerCase()
+        );
+        if (promotedBooking) await persistBooking(promotedBooking);
+      }
     }
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
