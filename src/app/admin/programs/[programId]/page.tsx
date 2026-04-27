@@ -290,13 +290,21 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                                 <button onClick={async () => {
                                   if (!confirm(`Remove ${b.name} (${b.email}) from this ${b.isWaitlisted ? 'waitlist' : 'session'}?`)) return;
                                   setAllBookings(prev => prev.filter(x => x.id !== b.id));
-                                  await fetch(`/api/admin/bookings/${b.id}?skipPromotion=true`, { method: 'DELETE' });
-                                  // Re-fetch to see updated state
-                                  const res = await fetch('/api/admin/bookings', { cache: 'no-store' });
-                                  if (res.ok) {
-                                    const fresh: AdminBooking[] = await res.json();
+                                  await fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
+                                  // Re-fetch to see updated state (waitlist promotions, etc.)
+                                  const [bookingsRes, sessionsRes] = await Promise.all([
+                                    fetch('/api/admin/bookings', { cache: 'no-store' }),
+                                    fetch('/api/sessions', { cache: 'no-store' }),
+                                  ]);
+                                  if (bookingsRes.ok) {
+                                    const fresh: AdminBooking[] = await bookingsRes.json();
                                     const eventTitles = new Set(events.filter(ev => ev.programId === programId).map(ev => ev.title));
                                     setAllBookings(fresh.filter(fb => eventTitles.has(fb.eventTitle)));
+                                  }
+                                  if (sessionsRes.ok) {
+                                    const freshSessions: Session[] = await sessionsRes.json();
+                                    const programEventIds = new Set(events.map(e => e.id));
+                                    setAllSessions(freshSessions.filter(s => programEventIds.has(s.eventId)));
                                   }
                                 }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
                               </td>
