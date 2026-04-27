@@ -41,9 +41,6 @@ export interface UpdateProgramInput extends Partial<CreateProgramInput> {
 
 // ─── Validation Constants ────────────────────────────────────────────────────
 
-const VALID_SESSION_DURATIONS = [30, 60, 120, 180];
-const VALID_SLOT_INTERVALS = [15, 30, 60];
-const VALID_MAX_ATTENDEES = [1, 2, 3, 5, 10];
 const DEFAULT_CALENDAR_TEMPLATE = '{programName} Session — {userName}';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -53,22 +50,16 @@ function validateProgramInput(input: CreateProgramInput): void {
     throw new Error('Program name is required');
   }
 
-  if (!VALID_SESSION_DURATIONS.includes(input.sessionDurationMinutes)) {
-    throw new Error(
-      `Invalid session duration: ${input.sessionDurationMinutes}. Must be one of: ${VALID_SESSION_DURATIONS.join(', ')}`,
-    );
+  if (!input.sessionDurationMinutes || input.sessionDurationMinutes < 1) {
+    throw new Error('Session duration must be at least 1 minute');
   }
 
-  if (!VALID_SLOT_INTERVALS.includes(input.slotIntervalMinutes)) {
-    throw new Error(
-      `Invalid slot interval: ${input.slotIntervalMinutes}. Must be one of: ${VALID_SLOT_INTERVALS.join(', ')}`,
-    );
+  if (!input.slotIntervalMinutes || input.slotIntervalMinutes < 1) {
+    throw new Error('Slot interval must be at least 1 minute');
   }
 
-  if (!VALID_MAX_ATTENDEES.includes(input.maxAttendees)) {
-    throw new Error(
-      `Invalid max attendees: ${input.maxAttendees}. Must be one of: ${VALID_MAX_ATTENDEES.join(', ')}`,
-    );
+  if (!input.maxAttendees || input.maxAttendees < 1) {
+    throw new Error('Max attendees must be at least 1');
   }
 }
 
@@ -127,31 +118,16 @@ export function updateProgram(
     checkNameUniqueness(input.name, programId);
   }
 
-  if (
-    input.sessionDurationMinutes !== undefined &&
-    !VALID_SESSION_DURATIONS.includes(input.sessionDurationMinutes)
-  ) {
-    throw new Error(
-      `Invalid session duration: ${input.sessionDurationMinutes}. Must be one of: ${VALID_SESSION_DURATIONS.join(', ')}`,
-    );
+  if (input.sessionDurationMinutes !== undefined && input.sessionDurationMinutes < 1) {
+    throw new Error('Session duration must be at least 1 minute');
   }
 
-  if (
-    input.slotIntervalMinutes !== undefined &&
-    !VALID_SLOT_INTERVALS.includes(input.slotIntervalMinutes)
-  ) {
-    throw new Error(
-      `Invalid slot interval: ${input.slotIntervalMinutes}. Must be one of: ${VALID_SLOT_INTERVALS.join(', ')}`,
-    );
+  if (input.slotIntervalMinutes !== undefined && input.slotIntervalMinutes < 1) {
+    throw new Error('Slot interval must be at least 1 minute');
   }
 
-  if (
-    input.maxAttendees !== undefined &&
-    !VALID_MAX_ATTENDEES.includes(input.maxAttendees)
-  ) {
-    throw new Error(
-      `Invalid max attendees: ${input.maxAttendees}. Must be one of: ${VALID_MAX_ATTENDEES.join(', ')}`,
-    );
+  if (input.maxAttendees !== undefined && input.maxAttendees < 1) {
+    throw new Error('Max attendees must be at least 1');
   }
 
   const updated: Program = {

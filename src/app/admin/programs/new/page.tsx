@@ -6,21 +6,6 @@ import type { CustomFormField, EmailTemplate, ProgramEmailTemplates } from '@/mo
 
 type NotificationType = 'confirmation' | 'cancellation' | 'waitlist_promotion' | 'reminder';
 
-const DURATION_OPTIONS = [
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
-  { value: 120, label: '2 hours' },
-  { value: 180, label: '3 hours' },
-];
-
-const INTERVAL_OPTIONS = [
-  { value: 15, label: '15 minutes' },
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
-];
-
-const MAX_ATTENDEES_OPTIONS = [1, 2, 3, 5, 10];
-
 const FIELD_TYPES: CustomFormField['type'][] = ['text', 'select', 'textarea'];
 
 const NOTIFICATION_TYPES: { key: NotificationType; label: string }[] = [
@@ -229,44 +214,44 @@ export default function CreateProgramPage() {
 
         {/* Session Duration */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">4. Session Duration</h3>
-          <select
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">4. Session Duration (minutes)</h3>
+          <input
+            type="number"
+            min="1"
             value={sessionDuration}
             onChange={(e) => setSessionDuration(Number(e.target.value))}
-            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {DURATION_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            placeholder="e.g. 60, 180, 360"
+            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+          />
+          <p className="text-xs text-gray-500 mt-1">How long each session lasts. Examples: 60 = 1 hour, 180 = 3 hours, 360 = 6 hours, 480 = full day</p>
         </section>
 
         {/* Slot Interval */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">5. Slot Interval</h3>
-          <select
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">5. Slot Interval (minutes)</h3>
+          <input
+            type="number"
+            min="1"
             value={slotInterval}
             onChange={(e) => setSlotInterval(Number(e.target.value))}
-            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {INTERVAL_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            placeholder="e.g. 15, 30, 60"
+            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+          />
+          <p className="text-xs text-gray-500 mt-1">Time between session start times. Use the same value as duration if sessions don't overlap.</p>
         </section>
 
         {/* Max Attendees */}
         <section className="mb-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-2">6. Max Attendees per Session</h3>
-          <select
+          <input
+            type="number"
+            min="1"
             value={maxAttendees}
             onChange={(e) => setMaxAttendees(Number(e.target.value))}
-            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {MAX_ATTENDEES_OPTIONS.map(n => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
+            placeholder="e.g. 1, 5, 20, 50"
+            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+          />
+          <p className="text-xs text-gray-500 mt-1">Maximum number of people who can book a single session slot.</p>
         </section>
 
         {/* Custom Form Fields */}
