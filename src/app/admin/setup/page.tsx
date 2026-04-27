@@ -49,6 +49,8 @@ function AdminSetupContent() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
+  const [slotMode, setSlotMode] = useState<'quick' | 'custom'>('quick');
+  const [customRanges, setCustomRanges] = useState<Array<{ start: string; end: string }>>([]);
   const [pageState, setPageState] = useState<PageState>('form');
   const [resultMessage, setResultMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -85,7 +87,19 @@ function AdminSetupContent() {
     if (!title.trim()) { setErrorMessage('Please enter an event title.'); return; }
     if (!startDate || !endDate) { setErrorMessage('Please select a start and end date.'); return; }
     if (startDate > endDate) { setErrorMessage('End date must be after start date.'); return; }
-    if (selectedSlots.size === 0) { setErrorMessage('Please select at least one time slot.'); return; }
+
+    // Determine time slots based on mode
+    let timeSlots: string[];
+    if (slotMode === 'quick') {
+      if (selectedSlots.size === 0) { setErrorMessage('Please select at least one time slot.'); return; }
+      timeSlots = [...selectedSlots].sort();
+    } else {
+      if (customRanges.length === 0) { setErrorMessage('Please add at least one custom time range.'); return; }
+      const invalid = customRanges.find(r => !r.start || !r.end || r.start >= r.end);
+      if (invalid) { setErrorMessage('Each custom range must have a start time before the end time.'); return; }
+      // Use start times as the time slots (duration is derived from the range)
+      timeSlots = customRanges.map(r => r.start).sort();
+    }
 
     setPageState('submitting');
     setErrorMessage('');
@@ -94,7 +108,7 @@ function AdminSetupContent() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots: [...selectedSlots].sort(), programId }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -190,17 +204,80 @@ function AdminSetupContent() {
         {/* Time slots */}
         <section className="mb-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-2">5. Choose time slots</h3>
-          <div className="flex gap-2 mb-3">
-            <button onClick={selectMorning} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Morning</button>
-            <button onClick={selectAfternoon} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Afternoon</button>
-            <button onClick={clearSlots} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Clear All</button>
+
+          {/* Mode toggle */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setSlotMode('quick')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors ${slotMode === 'quick' ? 'bg-[#1a1a2e] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              Quick Slots (15-min grid)
+            </button>
+            <button
+              onClick={() => setSlotMode('custom')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors ${slotMode === 'custom' ? 'bg-[#1a1a2e] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              Custom Ranges
+            </button>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-            {ALL_TIME_SLOTS.map((slot) => (
-              <button key={slot} onClick={() => toggleSlot(slot)} className={`px-2 py-2 rounded border text-sm font-medium transition-colors ${selectedSlots.has(slot) ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{slot}</button>
-            ))}
-          </div>
-          <p className="mt-2 text-sm text-gray-500">{selectedSlots.size} time slots selected</p>
+
+          {slotMode === 'quick' && (
+            <>
+              <div className="flex gap-2 mb-3">
+                <button onClick={selectMorning} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Morning</button>
+                <button onClick={selectAfternoon} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Select Afternoon</button>
+                <button onClick={clearSlots} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Clear All</button>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                {ALL_TIME_SLOTS.map((slot) => (
+                  <button key={slot} onClick={() => toggleSlot(slot)} className={`px-2 py-2 rounded border text-sm font-medium transition-colors ${selectedSlots.has(slot) ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{slot}</button>
+                ))}
+              </div>
+              <p className="mt-2 text-sm text-gray-500">{selectedSlots.size} time slots selected</p>
+            </>
+          )}
+
+          {slotMode === 'custom' && (
+            <>
+              <p className="text-sm text-gray-500 mb-3">Define custom time ranges. Each range becomes a bookable session slot.</p>
+              {customRanges.map((range, idx) => (
+                <div key={idx} className="flex items-center gap-2 mb-2">
+                  <span className="text-sm text-gray-500 w-16">Slot {idx + 1}:</span>
+                  <input
+                    type="time"
+                    value={range.start}
+                    onChange={(e) => setCustomRanges(prev => prev.map((r, i) => i === idx ? { ...r, start: e.target.value } : r))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="time"
+                    value={range.end}
+                    onChange={(e) => setCustomRanges(prev => prev.map((r, i) => i === idx ? { ...r, end: e.target.value } : r))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {range.start && range.end && range.start < range.end && (
+                    <span className="text-xs text-gray-400">
+                      ({Math.round((new Date(`2000-01-01T${range.end}`).getTime() - new Date(`2000-01-01T${range.start}`).getTime()) / 60000)} min)
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setCustomRanges(prev => prev.filter((_, i) => i !== idx))}
+                    className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setCustomRanges(prev => [...prev, { start: '', end: '' }])}
+                className="mt-2 px-3 py-1.5 text-sm font-medium bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+              >
+                + Add Slot
+              </button>
+              <p className="mt-2 text-sm text-gray-500">{customRanges.length} custom slot{customRanges.length !== 1 ? 's' : ''} defined</p>
+            </>
+          )}
         </section>
 
         {/* Summary */}
@@ -211,9 +288,16 @@ function AdminSetupContent() {
             <p>Location: {location || '—'}</p>
             <p>Timezone: {timezone}</p>
             <p>Days: {previewDates.length || '—'}</p>
-            <p>Slots per day: {selectedSlots.size || '—'}</p>
-            <p>Total sessions: {previewDates.length * selectedSlots.size || '—'}</p>
-            <p>Max attendees: {previewDates.length * selectedSlots.size * 3 || '—'}</p>
+            <p>Slots per day: {slotMode === 'quick' ? (selectedSlots.size || '—') : (customRanges.length || '—')}</p>
+            <p>Total sessions: {previewDates.length * (slotMode === 'quick' ? selectedSlots.size : customRanges.length) || '—'}</p>
+            {slotMode === 'custom' && customRanges.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <p className="font-medium">Custom slots:</p>
+                {customRanges.filter(r => r.start && r.end).map((r, i) => (
+                  <p key={i} className="text-gray-500">  {r.start} – {r.end}</p>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
