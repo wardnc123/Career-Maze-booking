@@ -52,6 +52,7 @@ function AdminSetupContent() {
   const [slotMode, setSlotMode] = useState<'quick' | 'custom'>('quick');
   const [customRanges, setCustomRanges] = useState<Array<{ start: string; end: string }>>([]);
   const [dayOverrides, setDayOverrides] = useState<Record<string, Set<string>>>({});
+  const [dayCustomRangeOverrides, setDayCustomRangeOverrides] = useState<Record<string, Array<{ start: string; end: string }>>>({});
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [maxAttendees, setMaxAttendees] = useState(3);
   const [pageState, setPageState] = useState<PageState>('form');
@@ -123,8 +124,6 @@ function AdminSetupContent() {
     return `${days[d.getUTCDay()]} ${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
   }
 
-  const overrideCount = Object.keys(dayOverrides).length;
-
   const previewDates = startDate && endDate && startDate <= endDate ? getDatesInRange(startDate, endDate) : [];
 
   async function handleCreate() {
@@ -148,13 +147,22 @@ function AdminSetupContent() {
     setPageState('submitting');
     setErrorMessage('');
 
-    // Build slotsPerDate from dayOverrides (only in quick mode)
+    // Build slotsPerDate from dayOverrides (quick mode) or dayCustomRangeOverrides (custom mode)
     let slotsPerDate: Record<string, string[]> | undefined;
     if (slotMode === 'quick' && Object.keys(dayOverrides).length > 0) {
       slotsPerDate = {};
       for (const [date, slots] of Object.entries(dayOverrides)) {
         if (slots.size > 0) {
           slotsPerDate[date] = [...slots].sort();
+        }
+      }
+      if (Object.keys(slotsPerDate).length === 0) slotsPerDate = undefined;
+    } else if (slotMode === 'custom' && Object.keys(dayCustomRangeOverrides).length > 0) {
+      slotsPerDate = {};
+      for (const [date, ranges] of Object.entries(dayCustomRangeOverrides)) {
+        const validRanges = ranges.filter(r => r.start && r.end);
+        if (validRanges.length > 0) {
+          slotsPerDate[date] = validRanges.map(r => r.start).sort();
         }
       }
       if (Object.keys(slotsPerDate).length === 0) slotsPerDate = undefined;
@@ -190,7 +198,7 @@ function AdminSetupContent() {
           <p className="text-gray-600 mb-6">{resultMessage}</p>
           <div className="flex gap-3 justify-center flex-wrap">
             <a href={programId !== 'default-career-maze' ? `/admin/programs/${programId}` : '/admin'} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
-            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); setDayOverrides({}); setExpandedDays(new Set()); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
+            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); setDayOverrides({}); setDayCustomRangeOverrides({}); setExpandedDays(new Set()); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
           </div>
         </div>
       </main>
@@ -336,25 +344,30 @@ function AdminSetupContent() {
           )}
         </section>
 
-        {/* Day Exceptions — only in quick slots mode when dates are selected */}
-        {slotMode === 'quick' && previewDates.length > 0 && selectedSlots.size > 0 && (
+        {/* Day Exceptions — when dates and default slots are selected */}
+        {previewDates.length > 0 && ((slotMode === 'quick' && selectedSlots.size > 0) || (slotMode === 'custom' && customRanges.length > 0)) && (
           <section className="mb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-2">Day Exceptions</h3>
             <p className="text-sm text-gray-500 mb-3">Customize time slots for specific days. Days without exceptions use the default slots above.</p>
             <div className="space-y-2">
               {previewDates.map((date) => {
-                const hasOverride = date in dayOverrides;
+                const hasQuickOverride = slotMode === 'quick' && date in dayOverrides;
+                const hasCustomOverride = slotMode === 'custom' && date in dayCustomRangeOverrides;
+                const hasOverride = hasQuickOverride || hasCustomOverride;
                 const isExpanded = expandedDays.has(date);
                 const overrideSlots = dayOverrides[date];
+                const overrideRanges = dayCustomRangeOverrides[date];
+                const defaultCount = slotMode === 'quick' ? selectedSlots.size : customRanges.length;
+                const overrideCount2 = hasQuickOverride ? overrideSlots.size : hasCustomOverride ? overrideRanges.length : 0;
                 return (
                   <div key={date} className={`border rounded-lg ${hasOverride ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
                     <div className="flex items-center justify-between px-3 py-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-800">{formatDateLabel(date)}</span>
                         {hasOverride ? (
-                          <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Custom ({overrideSlots.size} slot{overrideSlots.size !== 1 ? 's' : ''})</span>
+                          <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Custom ({overrideCount2} slot{overrideCount2 !== 1 ? 's' : ''})</span>
                         ) : (
-                          <span className="text-xs text-gray-500">Using default ({selectedSlots.size} slots)</span>
+                          <span className="text-xs text-gray-500">Using default ({defaultCount} slots)</span>
                         )}
                       </div>
                       <div className="flex gap-2">
@@ -363,18 +376,31 @@ function AdminSetupContent() {
                             <button onClick={() => toggleDayExpanded(date)} className="px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 rounded transition-colors">
                               {isExpanded ? 'Collapse' : 'Edit'}
                             </button>
-                            <button onClick={() => removeDayOverride(date)} className="px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 rounded transition-colors">
+                            <button onClick={() => {
+                              if (slotMode === 'quick') removeDayOverride(date);
+                              else {
+                                setDayCustomRangeOverrides(prev => { const n = { ...prev }; delete n[date]; return n; });
+                                setExpandedDays(prev => { const n = new Set(prev); n.delete(date); return n; });
+                              }
+                            }} className="px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 rounded transition-colors">
                               Reset to default
                             </button>
                           </>
                         ) : (
-                          <button onClick={() => enableDayOverride(date)} className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                          <button onClick={() => {
+                            if (slotMode === 'quick') enableDayOverride(date);
+                            else {
+                              setDayCustomRangeOverrides(prev => ({ ...prev, [date]: customRanges.map(r => ({ ...r })) }));
+                              setExpandedDays(prev => { const n = new Set(prev); n.add(date); return n; });
+                            }
+                          }} className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors">
                             Customize
                           </button>
                         )}
                       </div>
                     </div>
-                    {hasOverride && isExpanded && (
+                    {/* Quick slots grid for this day */}
+                    {hasQuickOverride && isExpanded && (
                       <div className="px-3 pb-3 pt-1 border-t border-amber-200">
                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
                           {ALL_TIME_SLOTS.map((slot) => (
@@ -390,12 +416,36 @@ function AdminSetupContent() {
                         <p className="mt-1.5 text-xs text-amber-700">{overrideSlots.size} slot{overrideSlots.size !== 1 ? 's' : ''} selected for {formatDateLabel(date)}</p>
                       </div>
                     )}
+                    {/* Custom ranges editor for this day */}
+                    {hasCustomOverride && isExpanded && (
+                      <div className="px-3 pb-3 pt-1 border-t border-amber-200">
+                        {overrideRanges.map((range, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-gray-500 w-14">Slot {idx + 1}:</span>
+                            <input type="time" value={range.start} onChange={(e) => setDayCustomRangeOverrides(prev => {
+                              const n = { ...prev }; n[date] = [...n[date]]; n[date][idx] = { ...n[date][idx], start: e.target.value }; return n;
+                            })} className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <span className="text-gray-400 text-xs">to</span>
+                            <input type="time" value={range.end} onChange={(e) => setDayCustomRangeOverrides(prev => {
+                              const n = { ...prev }; n[date] = [...n[date]]; n[date][idx] = { ...n[date][idx], end: e.target.value }; return n;
+                            })} className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <button onClick={() => setDayCustomRangeOverrides(prev => {
+                              const n = { ...prev }; n[date] = n[date].filter((_, i) => i !== idx); return n;
+                            })} className="px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50 rounded">Remove</button>
+                          </div>
+                        ))}
+                        <button onClick={() => setDayCustomRangeOverrides(prev => {
+                          const n = { ...prev }; n[date] = [...(n[date] || []), { start: '', end: '' }]; return n;
+                        })} className="px-2 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">+ Add Slot</button>
+                        <p className="mt-1.5 text-xs text-amber-700">{overrideRanges.length} slot{overrideRanges.length !== 1 ? 's' : ''} for {formatDateLabel(date)}</p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-            {overrideCount > 0 && (
-              <p className="mt-2 text-sm text-amber-700">{overrideCount} day{overrideCount !== 1 ? 's' : ''} with custom slots</p>
+            {(Object.keys(dayOverrides).length + Object.keys(dayCustomRangeOverrides).length) > 0 && (
+              <p className="mt-2 text-sm text-amber-700">{Object.keys(dayOverrides).length + Object.keys(dayCustomRangeOverrides).length} day{(Object.keys(dayOverrides).length + Object.keys(dayCustomRangeOverrides).length) !== 1 ? 's' : ''} with custom slots</p>
             )}
           </section>
         )}
@@ -422,8 +472,8 @@ function AdminSetupContent() {
             <p>Timezone: {timezone}</p>
             <p>Days: {previewDates.length || '—'}</p>
             <p>Default slots per day: {slotMode === 'quick' ? (selectedSlots.size || '—') : (customRanges.length || '—')}</p>
-            {slotMode === 'quick' && overrideCount > 0 && (
-              <p className="text-amber-700">Days with custom slots: {overrideCount}</p>
+            {(Object.keys(dayOverrides).length + Object.keys(dayCustomRangeOverrides).length) > 0 && (
+              <p className="text-amber-700">Days with custom slots: {Object.keys(dayOverrides).length + Object.keys(dayCustomRangeOverrides).length}</p>
             )}
             <p>Total sessions: {(() => {
               if (slotMode === 'quick') {
@@ -433,7 +483,11 @@ function AdminSetupContent() {
                 }
                 return total || '—';
               }
-              return previewDates.length * customRanges.length || '—';
+              let total = 0;
+              for (const date of previewDates) {
+                total += (dayCustomRangeOverrides[date]?.filter(r => r.start && r.end).length ?? customRanges.length);
+              }
+              return total || '—';
             })()}</p>
             {slotMode === 'custom' && customRanges.length > 0 && (
               <div className="mt-2 pt-2 border-t border-gray-200">
