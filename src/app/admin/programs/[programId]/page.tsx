@@ -174,6 +174,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
           <button onClick={async () => { if (!confirm('Send reminder emails to all attendees with sessions tomorrow?')) return; try { const res = await fetch('/api/cron/reminders', { method: 'POST' }); const data = await res.json(); if (res.ok) { alert(`Done! ${data.remindersSent} reminder(s) sent for ${data.sessionsProcessed} session(s).`); } else { alert(data.error || 'Failed to send reminders'); } } catch { alert('Network error'); } }} className="text-sm opacity-75 hover:opacity-100 transition-opacity">📧 Send Reminders</button>
           <button onClick={() => router.push(`/admin/programs/${programId}/settings`)} className="text-sm opacity-75 hover:opacity-100 transition-opacity">⚙️ Settings</button>
           <button onClick={() => router.push(`/admin/programs/${programId}/attendance`)} className="text-sm opacity-75 hover:opacity-100 transition-opacity">📋 Attendance</button>
+          <button onClick={() => router.push(`/admin/programs/${programId}/insights`)} className="text-sm opacity-75 hover:opacity-100 transition-opacity">📊 Insights</button>
           <button onClick={() => router.push('/admin/programs')} className="text-sm opacity-75 hover:opacity-100 transition-opacity">← All Programs</button>
         </div>
       </div>
