@@ -43,6 +43,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
   const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [showAttendees, setShowAttendees] = useState(false);
+  const [hideCancelled, setHideCancelled] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -222,10 +223,19 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
         </div>
 
         {/* Attendees section */}
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex items-center gap-3 flex-wrap">
           <button onClick={() => setShowAttendees(!showAttendees)} className="px-4 py-2 text-white text-sm rounded hover:opacity-90" style={{ backgroundColor: brandColor }}>
             {showAttendees ? 'Hide Attendees' : 'Show Attendees'}
           </button>
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideCancelled}
+              onChange={(e) => setHideCancelled(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-gray-600 focus:ring-gray-500"
+            />
+            Hide cancelled
+          </label>
           <button onClick={() => {
             const filtered = allBookings.filter(b => b.status === 'confirmed' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
             const csv = 'Program,Event,Name,Email,Role,PF,Date,Time,Status,Reference\n' + filtered.map(b => `"${program.name}","${b.eventTitle}","${b.name}","${b.email}","${b.role}","${b.pf}","${b.sessionDate}","${b.startTime.slice(0,5)}","${b.status}","${b.referenceCode}"`).join('\n');
@@ -258,7 +268,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
         {showAttendees && allBookings.length > 0 && (
           <div className="mb-6">
             {(() => {
-              const filtered = allBookings.filter(b => (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
+              const filtered = allBookings.filter(b => (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle))).filter(b => !hideCancelled || b.status !== 'cancelled');
               const dates = [...new Set(filtered.map(b => b.sessionDate))].sort();
               return dates.map(date => {
                 const dateBookings = filtered.filter(b => b.sessionDate === date);
@@ -314,6 +324,13 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                                       setAllSessions(freshSessions.filter(s => programEventIds.has(s.eventId)));
                                     }
                                   }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
+                                )}
+                                {b.status === 'cancelled' && (
+                                  <button onClick={async () => {
+                                    if (!confirm(`Permanently delete cancelled booking for ${b.name} (${b.email})?`)) return;
+                                    setAllBookings(prev => prev.filter(x => x.id !== b.id));
+                                    await fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
+                                  }} className="px-2 py-0.5 bg-gray-600 text-white text-xs rounded hover:bg-gray-700">Delete</button>
                                 )}
                               </td>
                             </tr>

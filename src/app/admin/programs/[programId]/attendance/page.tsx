@@ -28,6 +28,7 @@ export default function AttendancePage({ params }: { params: Promise<{ programId
   const [program, setProgram] = useState<Program | null>(null);
   const [events, setEvents] = useState<CareerMazeEvent[]>([]);
   const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,11 +46,29 @@ export default function AttendancePage({ params }: { params: Promise<{ programId
       const eventTitles = new Set(programEvents.map(e => e.title));
       const programBookings = (bookingsData as AdminBooking[]).filter(b => eventTitles.has(b.eventTitle));
       setAllBookings(programBookings);
+      setSelectedEventIds(new Set(programEvents.map(e => e.id)));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [programId]);
 
-  const confirmedBookings = useMemo(() => allBookings.filter(b => b.status === 'confirmed'), [allBookings]);
+  function toggleEvent(eventId: string) {
+    setSelectedEventIds(prev => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId); else next.add(eventId);
+      return next;
+    });
+  }
+
+  function selectAllEvents() { setSelectedEventIds(new Set(events.map(e => e.id))); }
+  function clearEvents() { setSelectedEventIds(new Set()); }
+
+  // Filter bookings by selected events
+  const filteredBookings = useMemo(() => {
+    if (selectedEventIds.size === 0) return allBookings;
+    return allBookings.filter(b => events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle));
+  }, [allBookings, selectedEventIds, events]);
+
+  const confirmedBookings = useMemo(() => filteredBookings.filter(b => b.status === 'confirmed'), [filteredBookings]);
   const attendedCount = useMemo(() => confirmedBookings.filter(b => b.attended).length, [confirmedBookings]);
   const attendanceRate = confirmedBookings.length > 0 ? Math.round((attendedCount / confirmedBookings.length) * 100) : 0;
 
@@ -119,6 +138,29 @@ export default function AttendancePage({ params }: { params: Promise<{ programId
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* Event filter */}
+        {events.length >= 1 && (
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold text-gray-900">Filter by Event</h2>
+              <div className="flex gap-2">
+                <button onClick={selectAllEvents} className="text-xs text-blue-600 hover:underline">Select All</button>
+                <button onClick={clearEvents} className="text-xs text-blue-600 hover:underline">Clear</button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {events.map(event => {
+                const isSelected = selectedEventIds.has(event.id);
+                return (
+                  <button key={event.id} onClick={() => toggleEvent(event.id)} className={`px-3 py-2 rounded-lg border text-sm transition-colors text-left ${isSelected ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`} style={isSelected ? { backgroundColor: brandColor, borderColor: brandColor } : undefined}>
+                    <div className="font-medium">{event.title}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Stats cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
           <div className="rounded-lg border p-4 bg-blue-50 text-blue-800 border-blue-200">
