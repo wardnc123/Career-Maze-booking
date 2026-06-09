@@ -17,7 +17,7 @@ interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
-  vpAlias: string; level: string; attended: boolean;
+  vpAlias: string; level: string; tenure: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }

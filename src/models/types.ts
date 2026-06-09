@@ -71,6 +71,7 @@ export interface Booking {
   promotedFromWaitlist?: boolean;
   vpAlias?: string;
   level?: string;
+  tenure?: string;
   attended?: boolean;
   createdAt: Date;
   cancelledAt: Date | null;

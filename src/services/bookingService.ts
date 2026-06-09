@@ -41,7 +41,7 @@ export function generateReferenceCode(): string {
 async function acquireLock(id: string) { while (sessionLocks.has(id)) { await new Promise((r) => setTimeout(r, 1)); } sessionLocks.add(id); }
 function releaseLock(id: string) { sessionLocks.delete(id); }
 
-export async function createBooking(data: BookingRequest & { vpAlias?: string; level?: string }): Promise<BookingResult> {
+export async function createBooking(data: BookingRequest & { vpAlias?: string; level?: string; tenure?: string }): Promise<BookingResult> {
   const session = getSession(data.sessionId);
   if (!session) return { status: 'rejected', reason: 'Session not found' };
 
@@ -60,7 +60,7 @@ export async function createBooking(data: BookingRequest & { vpAlias?: string; l
     }
 
     if (session.bookingCount < session.maxAttendees) {
-      const booking: Booking = { id: uuidv4(), sessionId: data.sessionId, name: data.name, email: data.email, role: data.role, pf: data.pf, status: 'confirmed', referenceCode: generateReferenceCode(), customFields: (data as any).customFields || null, vpAlias: data.vpAlias || '', level: data.level || '', attended: false, createdAt: new Date(), cancelledAt: null };
+      const booking: Booking = { id: uuidv4(), sessionId: data.sessionId, name: data.name, email: data.email, role: data.role, pf: data.pf, status: 'confirmed', referenceCode: generateReferenceCode(), customFields: (data as any).customFields || null, vpAlias: data.vpAlias || '', level: data.level || '', tenure: data.tenure || '', attended: false, createdAt: new Date(), cancelledAt: null };
       dmAddBooking(booking);
       session.bookingCount += 1;
       session.slotStatus = deriveSlotStatus(session.bookingCount, getWaitlistForSession(data.sessionId).length, session.maxAttendees);

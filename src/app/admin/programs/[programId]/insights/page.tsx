@@ -8,7 +8,7 @@ interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
-  vpAlias: string; level: string; attended: boolean;
+  vpAlias: string; level: string; tenure: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
@@ -21,8 +21,10 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [selectedLevels, setSelectedLevels] = useState<Set<string>>(new Set(['L3', 'L4', 'L5', 'L6', 'L7', 'L8']));
+  const [selectedTenures, setSelectedTenures] = useState<Set<string>>(new Set(['<1 year', '1-3 years', '3-5 years', '5-7 years', '7-10 years', '10+ years']));
   const [selectedVPs, setSelectedVPs] = useState<Set<string>>(new Set());
   const [allLevelsChecked, setAllLevelsChecked] = useState(true);
+  const [allTenuresChecked, setAllTenuresChecked] = useState(true);
   const [showAllVPs, setShowAllVPs] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -84,6 +86,28 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
     }
   }
 
+  // Tenure filter helpers
+  const allTenureOptions = ['<1 year', '1-3 years', '3-5 years', '5-7 years', '7-10 years', '10+ years'];
+
+  function toggleTenure(tenure: string) {
+    setSelectedTenures(prev => {
+      const next = new Set(prev);
+      if (next.has(tenure)) next.delete(tenure); else next.add(tenure);
+      setAllTenuresChecked(next.size === allTenureOptions.length);
+      return next;
+    });
+  }
+
+  function toggleAllTenures() {
+    if (allTenuresChecked) {
+      setSelectedTenures(new Set());
+      setAllTenuresChecked(false);
+    } else {
+      setSelectedTenures(new Set(allTenureOptions));
+      setAllTenuresChecked(true);
+    }
+  }
+
   // VP filter helpers
   const uniqueVPs = useMemo(() => {
     const vps = [...new Set(allBookings.map(b => b.vpAlias || '(none)'))];
@@ -101,7 +125,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   function selectAllVPs() { setSelectedVPs(new Set(uniqueVPs)); }
   function clearVPs() { setSelectedVPs(new Set()); }
 
-  // Apply all three filters
+  // Apply all filters
   const filtered = useMemo(() => {
     return allBookings
       .filter(b => {
@@ -113,10 +137,14 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
         return selectedLevels.has(b.level || '');
       })
       .filter(b => {
+        if (selectedTenures.size === 0) return true;
+        return selectedTenures.has(b.tenure || '');
+      })
+      .filter(b => {
         if (selectedVPs.size === 0) return true;
         return selectedVPs.has(b.vpAlias || '(none)');
       });
-  }, [allBookings, selectedEventIds, events, selectedLevels, selectedVPs]);
+  }, [allBookings, selectedEventIds, events, selectedLevels, selectedTenures, selectedVPs]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -148,6 +176,20 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       const attendancePct = confirmed > 0 ? Math.round((attended / confirmed) * 100) : 0;
       const cancelPct = signups > 0 ? Math.round((cancelled / signups) * 100) : 0;
       return { level, signups, confirmed, attended, attendancePct, cancelled, cancelPct };
+    }).filter(row => row.signups > 0);
+  }, [filtered]);
+
+  // Breakdown by Tenure
+  const tenureBreakdown = useMemo(() => {
+    return allTenureOptions.map(tenure => {
+      const tenureBookings = filtered.filter(b => b.tenure === tenure);
+      const signups = tenureBookings.length;
+      const confirmed = tenureBookings.filter(b => b.status === 'confirmed').length;
+      const attended = tenureBookings.filter(b => b.attended && b.status === 'confirmed').length;
+      const cancelled = tenureBookings.filter(b => b.status === 'cancelled').length;
+      const attendancePct = confirmed > 0 ? Math.round((attended / confirmed) * 100) : 0;
+      const cancelPct = signups > 0 ? Math.round((cancelled / signups) * 100) : 0;
+      return { tenure, signups, confirmed, attended, attendancePct, cancelled, cancelPct };
     }).filter(row => row.signups > 0);
   }, [filtered]);
 
@@ -278,6 +320,33 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
           </div>
         </section>
 
+        {/* Tenure filter */}
+        <section className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Filter by Tenure</h2>
+          <div className="flex flex-wrap gap-3 items-center">
+            <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allTenuresChecked}
+                onChange={toggleAllTenures}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              All
+            </label>
+            {allTenureOptions.map(tenure => (
+              <label key={tenure} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedTenures.has(tenure)}
+                  onChange={() => toggleTenure(tenure)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                {tenure}
+              </label>
+            ))}
+          </div>
+        </section>
+
         {/* VP Alias filter */}
         {uniqueVPs.length > 0 && (
           <section className="mb-6">
@@ -392,6 +461,40 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
           {levelBreakdown.length === 0 && (
             <p className="text-sm text-gray-500 text-center">No data for selected filters</p>
           )}
+        </div>
+
+        {/* Breakdown by VP Alias */}
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Breakdown by Tenure</h2>
+        <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Tenure</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Sign-ups</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Confirmed</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Attended</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Attendance %</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Cancelled</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700">Cancel %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenureBreakdown.map(row => (
+                <tr key={row.tenure} className="border-b border-gray-100 last:border-0">
+                  <td className="px-3 py-2 font-medium">{row.tenure}</td>
+                  <td className="px-3 py-2">{row.signups}</td>
+                  <td className="px-3 py-2">{row.confirmed}</td>
+                  <td className="px-3 py-2">{row.attended}</td>
+                  <td className="px-3 py-2">{row.attendancePct}%</td>
+                  <td className="px-3 py-2">{row.cancelled}</td>
+                  <td className="px-3 py-2">{row.cancelPct}%</td>
+                </tr>
+              ))}
+              {tenureBreakdown.length === 0 && (
+                <tr><td colSpan={7} className="px-3 py-4 text-center text-gray-500">No data for selected filters</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
         {/* Breakdown by VP Alias */}

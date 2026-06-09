@@ -19,6 +19,7 @@ export async function GET() {
       isWaitlisted: false,
       vpAlias: b.vpAlias || '',
       level: b.level || '',
+      tenure: b.tenure || '',
       attended: b.attended || false,
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
@@ -34,6 +35,7 @@ export async function GET() {
       promotedFromWaitlist: false,
       isWaitlisted: true,
       level: '',
+      tenure: '',
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
     };

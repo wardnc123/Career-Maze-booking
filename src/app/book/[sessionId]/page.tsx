@@ -45,6 +45,7 @@ export default function BookSessionPage({
   const [email, setEmail] = useState('');
   const [vpAlias, setVpAlias] = useState('');
   const [level, setLevel] = useState('');
+  const [tenure, setTenure] = useState('');
   const [role, setRole] = useState('');
   const [pf, setPf] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
@@ -105,6 +106,7 @@ export default function BookSessionPage({
     }
     if (!vpAlias.trim()) errors.vpAlias = 'VP Alias is required';
     if (!level) errors.level = 'Level is required';
+    if (!tenure) errors.tenure = 'Tenure is required';
     // For default program, validate role and pf
     if (isDefaultProgram) {
       if (!role.trim()) errors.role = 'Role is required';
@@ -145,6 +147,7 @@ export default function BookSessionPage({
           email: email.trim(),
           vpAlias: vpAlias.trim(),
           level,
+          tenure,
           role: isDefaultProgram ? role.trim() : (customFields.role || 'N/A'),
           pf: isDefaultProgram ? pf.trim() : (customFields.pf || 'N/A'),
           customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
@@ -432,6 +435,22 @@ export default function BookSessionPage({
               <option value="L8">L8</option>
             </select>
             {fieldErrors.level && <p id="level-error" className="text-red-500 text-xs mt-1">{fieldErrors.level}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="tenure" className="block text-sm font-medium text-gray-700 mb-1">Tenure at Amazon <span className="text-red-500">*</span></label>
+            <select id="tenure" value={tenure} onChange={(e) => setTenure(e.target.value)} disabled={isSubmitting}
+              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.tenure ? 'border-red-400' : 'border-gray-300'}`}
+              aria-invalid={!!fieldErrors.tenure} aria-describedby={fieldErrors.tenure ? 'tenure-error' : undefined}>
+              <option value="">Select your tenure...</option>
+              <option value="<1 year">&lt;1 year</option>
+              <option value="1-3 years">1-3 years</option>
+              <option value="3-5 years">3-5 years</option>
+              <option value="5-7 years">5-7 years</option>
+              <option value="7-10 years">7-10 years</option>
+              <option value="10+ years">10+ years</option>
+            </select>
+            {fieldErrors.tenure && <p id="tenure-error" className="text-red-500 text-xs mt-1">{fieldErrors.tenure}</p>}
           </div>
 
           {isDefaultProgram && (
