@@ -45,6 +45,7 @@ export async function loadData(): Promise<AppData> {
       referenceCode: r.reference_code,
       customFields: r.custom_fields || null,
       vpAlias: r.vp_alias || '',
+      level: r.level || '',
       attended: r.attended || false,
       createdAt: new Date(r.created_at),
       cancelledAt: r.cancelled_at ? new Date(r.cancelled_at) : null,
@@ -90,9 +91,9 @@ export async function saveSessions(sessions: Session[]) {
 
 export async function saveBooking(booking: Booking) {
   const sql = getDb();
-  await sql`INSERT INTO bookings (id, session_id, name, email, role, pf, status, reference_code, custom_fields, vp_alias, attended, created_at, cancelled_at)
-    VALUES (${booking.id}, ${booking.sessionId}, ${booking.name}, ${booking.email}, ${booking.role}, ${booking.pf}, ${booking.status}, ${booking.referenceCode}, ${booking.customFields ? JSON.stringify(booking.customFields) : null}, ${booking.vpAlias || ''}, ${booking.attended || false}, ${booking.createdAt.toISOString()}, ${booking.cancelledAt?.toISOString() || null})
-    ON CONFLICT (id) DO UPDATE SET status = ${booking.status}, cancelled_at = ${booking.cancelledAt?.toISOString() || null}, name = ${booking.name}, email = ${booking.email}, vp_alias = ${booking.vpAlias || ''}, attended = ${booking.attended || false}`;
+  await sql`INSERT INTO bookings (id, session_id, name, email, role, pf, status, reference_code, custom_fields, vp_alias, level, attended, created_at, cancelled_at)
+    VALUES (${booking.id}, ${booking.sessionId}, ${booking.name}, ${booking.email}, ${booking.role}, ${booking.pf}, ${booking.status}, ${booking.referenceCode}, ${booking.customFields ? JSON.stringify(booking.customFields) : null}, ${booking.vpAlias || ''}, ${booking.level || ''}, ${booking.attended || false}, ${booking.createdAt.toISOString()}, ${booking.cancelledAt?.toISOString() || null})
+    ON CONFLICT (id) DO UPDATE SET status = ${booking.status}, cancelled_at = ${booking.cancelledAt?.toISOString() || null}, name = ${booking.name}, email = ${booking.email}, vp_alias = ${booking.vpAlias || ''}, level = ${booking.level || ''}, attended = ${booking.attended || false}`;
 }
 
 export async function saveWaitlistEntry(entry: WaitlistEntry) {

@@ -17,7 +17,7 @@ interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
-  vpAlias: string; attended: boolean;
+  vpAlias: string; level: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
@@ -199,6 +199,7 @@ export default function AttendancePage({ params }: { params: Promise<{ programId
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Name</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Email</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">VP Alias</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">Level</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
                     </tr>
                   </thead>
@@ -217,6 +218,7 @@ export default function AttendancePage({ params }: { params: Promise<{ programId
                         <td className="px-3 py-2">{b.name}</td>
                         <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
                         <td className="px-3 py-2 text-gray-600">{b.vpAlias || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600">{b.level || '—'}</td>
                         <td className="px-3 py-2">{formatTime(b.startTime)}</td>
                       </tr>
                     ))}

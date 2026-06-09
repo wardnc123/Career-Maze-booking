@@ -70,6 +70,7 @@ export interface Booking {
   customFields: Record<string, string> | null;
   promotedFromWaitlist?: boolean;
   vpAlias?: string;
+  level?: string;
   attended?: boolean;
   createdAt: Date;
   cancelledAt: Date | null;

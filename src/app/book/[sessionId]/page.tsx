@@ -44,6 +44,7 @@ export default function BookSessionPage({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [vpAlias, setVpAlias] = useState('');
+  const [level, setLevel] = useState('');
   const [role, setRole] = useState('');
   const [pf, setPf] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
@@ -103,6 +104,7 @@ export default function BookSessionPage({
       errors.email = 'Please enter a valid email address';
     }
     if (!vpAlias.trim()) errors.vpAlias = 'VP Alias is required';
+    if (!level) errors.level = 'Level is required';
     // For default program, validate role and pf
     if (isDefaultProgram) {
       if (!role.trim()) errors.role = 'Role is required';
@@ -142,6 +144,7 @@ export default function BookSessionPage({
           name: name.trim(),
           email: email.trim(),
           vpAlias: vpAlias.trim(),
+          level,
           role: isDefaultProgram ? role.trim() : (customFields.role || 'N/A'),
           pf: isDefaultProgram ? pf.trim() : (customFields.pf || 'N/A'),
           customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
@@ -413,6 +416,22 @@ export default function BookSessionPage({
               className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.vpAlias ? 'border-red-400' : 'border-gray-300'}`}
               aria-invalid={!!fieldErrors.vpAlias} aria-describedby={fieldErrors.vpAlias ? 'vpAlias-error' : undefined} />
             {fieldErrors.vpAlias && <p id="vpAlias-error" className="text-red-500 text-xs mt-1">{fieldErrors.vpAlias}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="level" className="block text-sm font-medium text-gray-700 mb-1">Level <span className="text-red-500">*</span></label>
+            <select id="level" value={level} onChange={(e) => setLevel(e.target.value)} disabled={isSubmitting}
+              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.level ? 'border-red-400' : 'border-gray-300'}`}
+              aria-invalid={!!fieldErrors.level} aria-describedby={fieldErrors.level ? 'level-error' : undefined}>
+              <option value="">Select your level...</option>
+              <option value="L3">L3</option>
+              <option value="L4">L4</option>
+              <option value="L5">L5</option>
+              <option value="L6">L6</option>
+              <option value="L7">L7</option>
+              <option value="L8">L8</option>
+            </select>
+            {fieldErrors.level && <p id="level-error" className="text-red-500 text-xs mt-1">{fieldErrors.level}</p>}
           </div>
 
           {isDefaultProgram && (

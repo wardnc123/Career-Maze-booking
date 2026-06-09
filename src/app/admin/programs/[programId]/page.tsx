@@ -29,7 +29,7 @@ interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
-  vpAlias: string; attended: boolean;
+  vpAlias: string; level: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
@@ -284,6 +284,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Name</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Email</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">VP Alias</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">Level</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Status</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Action</th>
@@ -295,6 +296,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                               <td className={`px-3 py-2 ${b.status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>{b.name}</td>
                               <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
                               <td className="px-3 py-2 text-gray-600">{b.vpAlias || '—'}</td>
+                              <td className="px-3 py-2 text-gray-600">{b.level || '—'}</td>
                               <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>
                               <td className="px-3 py-2">
                                 {b.status === 'cancelled' && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium">cancelled</span>}

@@ -95,6 +95,10 @@ export async function initDb() {
     try {
       await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vp_alias TEXT DEFAULT ''`;
     } catch { /* column already exists */ }
+    // Add level column if not exists
+    try {
+      await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS level TEXT DEFAULT ''`;
+    } catch { /* column already exists */ }
     // Add attended column if not exists
     try {
       await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS attended BOOLEAN DEFAULT false`;

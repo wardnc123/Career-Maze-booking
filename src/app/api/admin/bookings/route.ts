@@ -18,6 +18,7 @@ export async function GET() {
       promotedFromWaitlist: b.promotedFromWaitlist || false,
       isWaitlisted: false,
       vpAlias: b.vpAlias || '',
+      level: b.level || '',
       attended: b.attended || false,
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
@@ -32,6 +33,7 @@ export async function GET() {
       status: 'waitlisted' as string, referenceCode: '',
       promotedFromWaitlist: false,
       isWaitlisted: true,
+      level: '',
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
     };
