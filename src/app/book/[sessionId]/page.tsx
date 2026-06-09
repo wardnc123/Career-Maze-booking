@@ -43,6 +43,7 @@ export default function BookSessionPage({
   // Form fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [vpAlias, setVpAlias] = useState('');
   const [role, setRole] = useState('');
   const [pf, setPf] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
@@ -101,6 +102,7 @@ export default function BookSessionPage({
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       errors.email = 'Please enter a valid email address';
     }
+    if (!vpAlias.trim()) errors.vpAlias = 'VP Alias is required';
     // For default program, validate role and pf
     if (isDefaultProgram) {
       if (!role.trim()) errors.role = 'Role is required';
@@ -139,6 +141,7 @@ export default function BookSessionPage({
           sessionId,
           name: name.trim(),
           email: email.trim(),
+          vpAlias: vpAlias.trim(),
           role: isDefaultProgram ? role.trim() : (customFields.role || 'N/A'),
           pf: isDefaultProgram ? pf.trim() : (customFields.pf || 'N/A'),
           customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
@@ -401,6 +404,15 @@ export default function BookSessionPage({
               className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.email ? 'border-red-400' : 'border-gray-300'}`}
               aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'email-error' : undefined} />
             {fieldErrors.email && <p id="email-error" className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="vpAlias" className="block text-sm font-medium text-gray-700 mb-1">VP Alias <span className="text-red-500">*</span></label>
+            <input id="vpAlias" type="text" value={vpAlias} onChange={(e) => setVpAlias(e.target.value)} disabled={isSubmitting}
+              placeholder="e.g. jeffb"
+              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.vpAlias ? 'border-red-400' : 'border-gray-300'}`}
+              aria-invalid={!!fieldErrors.vpAlias} aria-describedby={fieldErrors.vpAlias ? 'vpAlias-error' : undefined} />
+            {fieldErrors.vpAlias && <p id="vpAlias-error" className="text-red-500 text-xs mt-1">{fieldErrors.vpAlias}</p>}
           </div>
 
           {isDefaultProgram && (

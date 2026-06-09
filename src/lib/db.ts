@@ -91,6 +91,14 @@ export async function initDb() {
       pf TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
+    // Add vp_alias column if not exists
+    try {
+      await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vp_alias TEXT DEFAULT ''`;
+    } catch { /* column already exists */ }
+    // Add attended column if not exists
+    try {
+      await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS attended BOOLEAN DEFAULT false`;
+    } catch { /* column already exists */ }
     console.log('[db] Tables initialized successfully');
   } catch (err) {
     console.error('[db] Failed to initialize tables:', err);

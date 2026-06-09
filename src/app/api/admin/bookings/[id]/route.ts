@@ -7,6 +7,32 @@ import { noCacheHeaders } from '@/lib/apiHeaders';
 import { getWaitlistStore, getBookingsStore } from '@/lib/dataManager';
 
 /**
+ * PATCH /api/admin/bookings/:id
+ * Update booking fields (e.g. attended status).
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  await ensureLoaded();
+  const { id } = await params;
+
+  let body: Record<string, unknown>;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }); }
+
+  const booking = getAllBookings().find((b) => b.id === id);
+  if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+
+  if (typeof body.attended === 'boolean') {
+    booking.attended = body.attended;
+  }
+
+  await persistBooking(booking);
+
+  return NextResponse.json({ message: 'Booking updated', attended: booking.attended }, { headers: noCacheHeaders });
+}
+
+/**
  * DELETE /api/admin/bookings/:id
  * Admin cancellation — handles both bookings and waitlist entries.
  */

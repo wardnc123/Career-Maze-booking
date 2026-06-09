@@ -17,6 +17,8 @@ export async function GET() {
       status: b.status, referenceCode: b.referenceCode,
       promotedFromWaitlist: b.promotedFromWaitlist || false,
       isWaitlisted: false,
+      vpAlias: b.vpAlias || '',
+      attended: b.attended || false,
       sessionDate: session?.sessionDate || '', startTime: session?.startTime || '',
       eventTitle: event?.title || '', eventLocation: event?.location || '',
     };

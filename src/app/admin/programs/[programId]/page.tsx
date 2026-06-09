@@ -29,6 +29,7 @@ interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
+  vpAlias: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
@@ -171,6 +172,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
           <a href={`/programs/${programId}`} className="text-sm opacity-75 hover:opacity-100 transition-opacity" target="_blank" rel="noopener noreferrer">🔗 View Booking Page</a>
           <button onClick={async () => { if (!confirm('Send reminder emails to all attendees with sessions tomorrow?')) return; try { const res = await fetch('/api/cron/reminders', { method: 'POST' }); const data = await res.json(); if (res.ok) { alert(`Done! ${data.remindersSent} reminder(s) sent for ${data.sessionsProcessed} session(s).`); } else { alert(data.error || 'Failed to send reminders'); } } catch { alert('Network error'); } }} className="text-sm opacity-75 hover:opacity-100 transition-opacity">📧 Send Reminders</button>
           <button onClick={() => router.push(`/admin/programs/${programId}/settings`)} className="text-sm opacity-75 hover:opacity-100 transition-opacity">⚙️ Settings</button>
+          <button onClick={() => router.push(`/admin/programs/${programId}/attendance`)} className="text-sm opacity-75 hover:opacity-100 transition-opacity">📋 Attendance</button>
           <button onClick={() => router.push('/admin/programs')} className="text-sm opacity-75 hover:opacity-100 transition-opacity">← All Programs</button>
         </div>
       </div>
@@ -210,12 +212,13 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
           <StatCard label="Total Bookings" value={stats.totalBooked} sub={`of ${stats.totalCapacity} capacity`} color="bg-blue-50 text-blue-800 border-blue-200" />
           <StatCard label="Utilisation" value={`${stats.utilisation}%`} sub={`${stats.full} full sessions`} color="bg-emerald-50 text-emerald-800 border-emerald-200" />
           <StatCard label="Empty Sessions" value={stats.empty} sub={`of ${stats.total} total`} color="bg-amber-50 text-amber-800 border-amber-200" />
           <StatCard label="Partially Booked" value={stats.partial} sub={`of ${stats.total} total`} color="bg-violet-50 text-violet-800 border-violet-200" />
           <StatCard label="Fully Booked" value={stats.full} sub={`of ${stats.total} total`} color="bg-red-50 text-red-800 border-red-200" />
+          <StatCard label="Attendance" value={`${allBookings.filter(b => b.attended && b.status === 'confirmed').length}/${allBookings.filter(b => b.status === 'confirmed').length}`} sub="attended / confirmed" color="bg-cyan-50 text-cyan-800 border-cyan-200" />
         </div>
 
         {/* Attendees section */}
@@ -255,7 +258,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
         {showAttendees && allBookings.length > 0 && (
           <div className="mb-6">
             {(() => {
-              const filtered = allBookings.filter(b => b.status !== 'cancelled' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
+              const filtered = allBookings.filter(b => (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
               const dates = [...new Set(filtered.map(b => b.sessionDate))].sort();
               return dates.map(date => {
                 const dateBookings = filtered.filter(b => b.sessionDate === date);
@@ -270,6 +273,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                           <tr>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Name</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Email</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-700">VP Alias</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Time</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Status</th>
                             <th className="text-left px-3 py-2 font-medium text-gray-700">Action</th>
@@ -277,36 +281,40 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                         </thead>
                         <tbody>
                           {dateBookings.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(b => (
-                            <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.isWaitlisted ? 'bg-amber-50' : b.promotedFromWaitlist ? 'bg-purple-50' : ''}`}>
-                              <td className="px-3 py-2">{b.name}</td>
+                            <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.status === 'cancelled' ? 'opacity-50' : b.isWaitlisted ? 'bg-amber-50' : b.promotedFromWaitlist ? 'bg-purple-50' : ''}`}>
+                              <td className={`px-3 py-2 ${b.status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>{b.name}</td>
                               <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
+                              <td className="px-3 py-2 text-gray-600">{b.vpAlias || '—'}</td>
                               <td className="px-3 py-2">{b.startTime.slice(0, 5)}</td>
                               <td className="px-3 py-2">
+                                {b.status === 'cancelled' && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium">cancelled</span>}
                                 {b.isWaitlisted && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded font-medium">waitlisted</span>}
-                                {b.promotedFromWaitlist && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-medium">promoted</span>}
+                                {b.promotedFromWaitlist && b.status !== 'cancelled' && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-medium">promoted</span>}
                                 {!b.isWaitlisted && !b.promotedFromWaitlist && b.status === 'confirmed' && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded font-medium">confirmed</span>}
                               </td>
                               <td className="px-3 py-2">
-                                <button onClick={async () => {
-                                  if (!confirm(`Remove ${b.name} (${b.email}) from this ${b.isWaitlisted ? 'waitlist' : 'session'}?`)) return;
-                                  setAllBookings(prev => prev.filter(x => x.id !== b.id));
-                                  await fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
-                                  // Re-fetch to see updated state (waitlist promotions, etc.)
-                                  const [bookingsRes, sessionsRes] = await Promise.all([
-                                    fetch('/api/admin/bookings', { cache: 'no-store' }),
-                                    fetch('/api/sessions', { cache: 'no-store' }),
-                                  ]);
-                                  if (bookingsRes.ok) {
-                                    const fresh: AdminBooking[] = await bookingsRes.json();
-                                    const eventTitles = new Set(events.filter(ev => ev.programId === programId).map(ev => ev.title));
-                                    setAllBookings(fresh.filter(fb => eventTitles.has(fb.eventTitle)));
-                                  }
-                                  if (sessionsRes.ok) {
-                                    const freshSessions: Session[] = await sessionsRes.json();
-                                    const programEventIds = new Set(events.map(e => e.id));
-                                    setAllSessions(freshSessions.filter(s => programEventIds.has(s.eventId)));
-                                  }
-                                }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
+                                {b.status !== 'cancelled' && (
+                                  <button onClick={async () => {
+                                    if (!confirm(`Remove ${b.name} (${b.email}) from this ${b.isWaitlisted ? 'waitlist' : 'session'}?`)) return;
+                                    setAllBookings(prev => prev.filter(x => x.id !== b.id));
+                                    await fetch(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
+                                    // Re-fetch to see updated state (waitlist promotions, etc.)
+                                    const [bookingsRes, sessionsRes] = await Promise.all([
+                                      fetch('/api/admin/bookings', { cache: 'no-store' }),
+                                      fetch('/api/sessions', { cache: 'no-store' }),
+                                    ]);
+                                    if (bookingsRes.ok) {
+                                      const fresh: AdminBooking[] = await bookingsRes.json();
+                                      const eventTitles = new Set(events.filter(ev => ev.programId === programId).map(ev => ev.title));
+                                      setAllBookings(fresh.filter(fb => eventTitles.has(fb.eventTitle)));
+                                    }
+                                    if (sessionsRes.ok) {
+                                      const freshSessions: Session[] = await sessionsRes.json();
+                                      const programEventIds = new Set(events.map(e => e.id));
+                                      setAllSessions(freshSessions.filter(s => programEventIds.has(s.eventId)));
+                                    }
+                                  }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
+                                )}
                               </td>
                             </tr>
                           ))}
