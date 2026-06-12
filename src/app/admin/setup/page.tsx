@@ -55,6 +55,7 @@ function AdminSetupContent() {
   const [dayCustomRangeOverrides, setDayCustomRangeOverrides] = useState<Record<string, Array<{ start: string; end: string }>>>({});
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [maxAttendees, setMaxAttendees] = useState(3);
+  const [allowMultiSlot, setAllowMultiSlot] = useState(false);
   const [pageState, setPageState] = useState<PageState>('form');
   const [resultMessage, setResultMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -172,7 +173,7 @@ function AdminSetupContent() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId, maxAttendees, ...(slotsPerDate ? { slotsPerDate } : {}) }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId, maxAttendees, allowMultiSlot, ...(slotsPerDate ? { slotsPerDate } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -198,7 +199,7 @@ function AdminSetupContent() {
           <p className="text-gray-600 mb-6">{resultMessage}</p>
           <div className="flex gap-3 justify-center flex-wrap">
             <a href={programId !== 'default-career-maze' ? `/admin/programs/${programId}` : '/admin'} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
-            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); setDayOverrides({}); setDayCustomRangeOverrides({}); setExpandedDays(new Set()); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
+            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); setDayOverrides({}); setDayCustomRangeOverrides({}); setExpandedDays(new Set()); setAllowMultiSlot(false); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
           </div>
         </div>
       </main>
@@ -461,6 +462,20 @@ function AdminSetupContent() {
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
           />
           <p className="text-xs text-gray-500 mt-1">How many people can book each time slot before it becomes full.</p>
+        </section>
+
+        {/* Allow Multi-Slot */}
+        <section className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allowMultiSlot}
+              onChange={(e) => setAllowMultiSlot(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Allow attendees to sign up to more than 1 slot
+          </label>
+          <p className="text-xs text-gray-500 mt-1 ml-6">When enabled, users can select multiple time slots before booking.</p>
         </section>
 
         {/* Summary */}

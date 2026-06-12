@@ -165,5 +165,6 @@ export interface CareerMazeEvent {
   programId: string;          // Foreign key to Program
   dates: string[];            // ISO date strings
   timeSlots: string[];        // Local time strings (HH:MM) in the event's timezone
+  allowMultiSlot?: boolean;   // Whether attendees can book multiple slots
   createdAt: Date;
 }

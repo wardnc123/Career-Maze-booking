@@ -107,6 +107,10 @@ export async function initDb() {
     try {
       await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS attended BOOLEAN DEFAULT false`;
     } catch { /* column already exists */ }
+    // Add allow_multi_slot column if not exists
+    try {
+      await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_multi_slot BOOLEAN DEFAULT false`;
+    } catch { /* column already exists */ }
     console.log('[db] Tables initialized successfully');
   } catch (err) {
     console.error('[db] Failed to initialize tables:', err);

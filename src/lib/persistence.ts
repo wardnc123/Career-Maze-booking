@@ -28,6 +28,7 @@ export async function loadData(): Promise<AppData> {
       timezone: r.timezone || 'Europe/London',
       programId: r.program_id || 'default-career-maze',
       dates: r.dates || [], timeSlots: r.time_slots || [],
+      allowMultiSlot: r.allow_multi_slot || false,
       createdAt: new Date(r.created_at),
     }));
 
@@ -68,9 +69,9 @@ export async function loadData(): Promise<AppData> {
 
 export async function saveEvent(event: CareerMazeEvent) {
   const sql = getDb();
-  await sql`INSERT INTO events (id, title, location, timezone, program_id, dates, time_slots, created_at)
-    VALUES (${event.id}, ${event.title}, ${event.location}, ${event.timezone}, ${event.programId}, ${JSON.stringify(event.dates)}, ${JSON.stringify(event.timeSlots)}, ${event.createdAt.toISOString()})
-    ON CONFLICT (id) DO UPDATE SET title = ${event.title}, location = ${event.location}, timezone = ${event.timezone}, program_id = ${event.programId}, dates = ${JSON.stringify(event.dates)}, time_slots = ${JSON.stringify(event.timeSlots)}`;
+  await sql`INSERT INTO events (id, title, location, timezone, program_id, dates, time_slots, allow_multi_slot, created_at)
+    VALUES (${event.id}, ${event.title}, ${event.location}, ${event.timezone}, ${event.programId}, ${JSON.stringify(event.dates)}, ${JSON.stringify(event.timeSlots)}, ${event.allowMultiSlot || false}, ${event.createdAt.toISOString()})
+    ON CONFLICT (id) DO UPDATE SET title = ${event.title}, location = ${event.location}, timezone = ${event.timezone}, program_id = ${event.programId}, dates = ${JSON.stringify(event.dates)}, time_slots = ${JSON.stringify(event.timeSlots)}, allow_multi_slot = ${event.allowMultiSlot || false}`;
 }
 
 export async function saveSession(session: Session) {
