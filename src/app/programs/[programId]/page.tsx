@@ -37,6 +37,7 @@ export default function ProgramBookingPage({
   const [allSessions, setAllSessions] = useState<Session[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,10 +87,19 @@ export default function ProgramBookingPage({
         const programEventIds = new Set(programEvents.map((e) => e.id));
         const programSessions = allSess.filter((s) => programEventIds.has(s.eventId));
 
+        // Filter out past sessions
+        const today = new Date().toISOString().slice(0, 10);
+        const futureSessions = programSessions.filter(s => s.sessionDate >= today);
+
+        // Filter out events that have no future sessions remaining
+        const eventsWithFutureSessions = programEvents.filter(ev => {
+          return futureSessions.some(s => s.eventId === ev.id);
+        });
+
         setProgram(prog);
-        setEvents(programEvents);
-        setAllSessions(programSessions);
-        if (programEvents.length > 0) setSelectedEventId(programEvents[0].id);
+        setEvents(eventsWithFutureSessions);
+        setAllSessions(futureSessions);
+        if (eventsWithFutureSessions.length > 0) setSelectedEventId(eventsWithFutureSessions[0].id);
         setLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -135,7 +145,11 @@ export default function ProgramBookingPage({
   }, [sessions, selectedDate]);
 
   const handleSlotClick = useCallback((session: Session) => {
-    window.location.href = `/book/${session.id}`;
+    setSelectedSessionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(session.id)) next.delete(session.id); else next.add(session.id);
+      return next;
+    });
   }, []);
 
   const brandColor = program?.brandColor || '#1a1a2e';
@@ -251,8 +265,8 @@ export default function ProgramBookingPage({
           </div>
         </nav>
 
-        <SessionBlock title="Morning" sessions={morning} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} />
-        <SessionBlock title="Afternoon" sessions={afternoon} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} />
+        <SessionBlock title="Morning" sessions={morning} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} selectedSessionIds={selectedSessionIds} brandColor={brandColor} />
+        <SessionBlock title="Afternoon" sessions={afternoon} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} selectedSessionIds={selectedSessionIds} brandColor={brandColor} />
 
         <div className="mt-8 pt-6 border-t border-gray-200 text-center">
           <p className="text-sm text-gray-500 mb-2">Need to manage your bookings?</p>
@@ -263,6 +277,27 @@ export default function ProgramBookingPage({
           </div>
         </div>
       </div>
+
+      {selectedSessionIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4 z-50">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="text-sm text-gray-700">
+              {selectedSessionIds.size} slot{selectedSessionIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex gap-3">
+              <button onClick={() => setSelectedSessionIds(new Set())} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
+                Clear
+              </button>
+              <button onClick={() => {
+                const ids = [...selectedSessionIds].join(',');
+                window.location.href = `/book/${ids}`;
+              }} className="px-4 py-2 text-sm text-white rounded hover:opacity-90" style={{ backgroundColor: brandColor }}>
+                Confirm {selectedSessionIds.size} Slot{selectedSessionIds.size !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -272,11 +307,15 @@ function SessionBlock({
   sessions,
   onSlotClick,
   maxAttendees,
+  selectedSessionIds,
+  brandColor,
 }: {
   title: string;
   sessions: Session[];
   onSlotClick: (s: Session) => void;
   maxAttendees: number;
+  selectedSessionIds: Set<string>;
+  brandColor: string;
 }) {
   if (sessions.length === 0) return null;
 
@@ -288,12 +327,15 @@ function SessionBlock({
           const londonTime = formatTime(session.startTime);
           const style = STATUS_COLORS[session.slotStatus];
           const capacity = session.maxAttendees || maxAttendees;
+          const isSelected = selectedSessionIds.has(session.id);
           return (
             <button
               key={session.id}
               onClick={() => onSlotClick(session)}
-              className={`rounded-lg border p-3 text-center transition-colors cursor-pointer ${style.bg}`}
-              aria-label={`${londonTime} — ${style.label} (${session.bookingCount}/${capacity} booked)`}
+              className={`rounded-lg border p-3 text-center transition-colors cursor-pointer ${style.bg} ${isSelected ? 'ring-2 ring-offset-2' : ''}`}
+              style={isSelected ? { '--tw-ring-color': brandColor } as React.CSSProperties : undefined}
+              aria-label={`${londonTime} — ${style.label} (${session.bookingCount}/${capacity} booked)${isSelected ? ' (selected)' : ''}`}
+              aria-pressed={isSelected}
             >
               <div className={`text-sm sm:text-base font-semibold ${style.text}`}>{londonTime}</div>
               <div className={`text-xs mt-0.5 ${style.text} opacity-75`}>{session.bookingCount}/{capacity}</div>

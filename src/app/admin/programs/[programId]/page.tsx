@@ -74,7 +74,13 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
       const programBookings = (bookingsData as AdminBooking[]).filter(b => eventTitles.has(b.eventTitle));
       setAllBookings(programBookings);
 
-      setSelectedEventIds(new Set(programEvents.map(e => e.id)));
+      // Only select active events by default (those with at least one future session)
+      const today = new Date().toISOString().slice(0, 10);
+      const activeEvents = programEvents.filter(ev => {
+        const eventSessions = programSessions.filter(s => s.eventId === ev.id);
+        return eventSessions.some(s => s.sessionDate >= today);
+      });
+      setSelectedEventIds(new Set(activeEvents.map(e => e.id)));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [programId]);
@@ -92,6 +98,20 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
     });
     return () => es.close();
   }, []);
+
+  // Split events into active and completed
+  const { activeEvents, completedEvents } = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const active = events.filter(ev => {
+      const eventSessions = allSessions.filter(s => s.eventId === ev.id);
+      return eventSessions.some(s => s.sessionDate >= today);
+    });
+    const completed = events.filter(ev => {
+      const eventSessions = allSessions.filter(s => s.eventId === ev.id);
+      return eventSessions.length > 0 && eventSessions.every(s => s.sessionDate < today);
+    });
+    return { activeEvents: active, completedEvents: completed };
+  }, [events, allSessions]);
 
   // Filter sessions by selected events
   const sessions = useMemo(() => {
@@ -191,7 +211,7 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {events.map(event => {
+              {activeEvents.map(event => {
                 const isSelected = selectedEventIds.has(event.id);
                 const eventSessions = allSessions.filter(s => s.eventId === event.id);
                 const booked = eventSessions.reduce((sum, s) => sum + s.bookingCount, 0);
@@ -210,6 +230,24 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                 );
               })}
             </div>
+
+            {completedEvents.length > 0 && (
+              <details className="mb-6 mt-4">
+                <summary className="text-sm font-medium text-gray-600 cursor-pointer hover:text-gray-800">
+                  Completed Events ({completedEvents.length})
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {completedEvents.map(event => (
+                    <div key={event.id} className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-500">
+                      <div className="font-medium">{event.title} <span className="text-xs bg-gray-200 px-1.5 py-0.5 rounded ml-1">[COMPLETED]</span></div>
+                      <button onClick={() => toggleEvent(event.id)} className="text-xs text-blue-500 hover:underline mt-1">
+                        {selectedEventIds.has(event.id) ? 'Hide from view' : 'Show in view'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </section>
         )}
 

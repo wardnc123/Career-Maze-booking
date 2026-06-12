@@ -25,6 +25,7 @@ type PageState =
   | { kind: 'form' }
   | { kind: 'submitting' }
   | { kind: 'confirmed'; booking: Booking }
+  | { kind: 'multi-confirmed'; bookings: Booking[] }
   | { kind: 'waitlisted'; entry: WaitlistEntry }
   | { kind: 'session-full'; message: string }
   | { kind: 'error'; message: string };
@@ -35,7 +36,9 @@ export default function BookSessionPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const [sessionId, setSessionId] = useState<string>('');
+  const [sessionIds, setSessionIds] = useState<string[]>([]);
   const [session, setSession] = useState<Session | null>(null);
+  const [allSessions, setAllSessions] = useState<Session[]>([]);
   const [event, setEvent] = useState<CareerMazeEvent | null>(null);
   const [program, setProgram] = useState<Program | null>(null);
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
@@ -63,21 +66,28 @@ export default function BookSessionPage({
   useEffect(() => {
     let cancelled = false;
     async function init() {
-      const { sessionId: id } = await params;
+      const { sessionId: rawId } = await params;
       if (cancelled) return;
-      setSessionId(id);
+      const ids = rawId.split(',');
+      setSessionId(ids[0]);
+      setSessionIds(ids);
 
       try {
-        const sessionRes = await fetch(`/api/sessions/${id}`);
-        if (!sessionRes.ok) { if (!cancelled) setPageState({ kind: 'not-found' }); return; }
-        const sessionData: Session = await sessionRes.json();
+        // Fetch all sessions
+        const sessionResponses = await Promise.all(ids.map(id => fetch(`/api/sessions/${id}`)));
+        const sessionsData: Session[] = [];
+        for (const res of sessionResponses) {
+          if (!res.ok) { if (!cancelled) setPageState({ kind: 'not-found' }); return; }
+          sessionsData.push(await res.json());
+        }
         if (cancelled) return;
-        setSession(sessionData);
+        setSession(sessionsData[0]);
+        setAllSessions(sessionsData);
 
-        // Fetch events to find the event for this session
+        // Fetch events to find the event for the first session
         const eventsRes = await fetch('/api/admin/setup');
         const eventsData: CareerMazeEvent[] = await eventsRes.json();
-        const eventData = eventsData.find((e) => e.id === sessionData.eventId);
+        const eventData = eventsData.find((e) => e.id === sessionsData[0].eventId);
         if (eventData) {
           setEvent(eventData);
           // Fetch program
@@ -129,29 +139,56 @@ export default function BookSessionPage({
     setPageState({ kind: 'submitting' });
     setFieldErrors({});
 
-    // Build custom fields object
-    const customFields: Record<string, string> = {};
-    for (const field of customFormFields) {
-      if (customFieldValues[field.name]) {
-        customFields[field.name] = customFieldValues[field.name].trim();
-      }
-    }
-
     try {
+      // Build custom fields object
+      const customFields: Record<string, string> = {};
+      for (const field of customFormFields) {
+        if (customFieldValues[field.name]) {
+          customFields[field.name] = customFieldValues[field.name].trim();
+        }
+      }
+
+      const bookingPayload = {
+        name: name.trim(),
+        email: email.trim(),
+        vpAlias: vpAlias.trim(),
+        level,
+        tenure,
+        role: isDefaultProgram ? role.trim() : (customFields.role || 'N/A'),
+        pf: isDefaultProgram ? pf.trim() : (customFields.pf || 'N/A'),
+        customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
+      };
+
+      // If multiple sessions, book each one
+      if (sessionIds.length > 1) {
+        const bookings: Booking[] = [];
+        for (const sid of sessionIds) {
+          const res = await fetch('/api/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...bookingPayload, sessionId: sid }),
+          });
+          const data = await res.json();
+          if (res.status === 201 && data.status === 'confirmed') {
+            bookings.push(data.booking);
+          } else if (res.status === 409 || res.status === 400) {
+            // Continue with other bookings but note the error
+            continue;
+          }
+        }
+        if (bookings.length > 0) {
+          setPageState({ kind: 'multi-confirmed', bookings });
+        } else {
+          setPageState({ kind: 'error', message: 'Could not book any of the selected sessions.' });
+        }
+        return;
+      }
+
+      // Single session booking (original flow)
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          name: name.trim(),
-          email: email.trim(),
-          vpAlias: vpAlias.trim(),
-          level,
-          tenure,
-          role: isDefaultProgram ? role.trim() : (customFields.role || 'N/A'),
-          pf: isDefaultProgram ? pf.trim() : (customFields.pf || 'N/A'),
-          customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
-        }),
+        body: JSON.stringify({ ...bookingPayload, sessionId }),
       });
 
       const data = await res.json();
@@ -314,6 +351,39 @@ export default function BookSessionPage({
     );
   }
 
+  // --- Multi-Confirmed ---
+  if (pageState.kind === 'multi-confirmed') {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-md p-6 max-w-md w-full text-center">
+          <div className="text-green-600 text-4xl mb-3" aria-hidden="true">✓</div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Bookings Confirmed</h1>
+          <p className="text-gray-600 mb-4">{pageState.bookings.length} session{pageState.bookings.length !== 1 ? 's' : ''} booked successfully.</p>
+          <div className="bg-gray-50 rounded p-4 mb-4 text-left space-y-3">
+            {programName && <><p className="text-sm text-gray-500">Program</p><p className="font-medium text-gray-900">{programName}</p></>}
+            {pageState.bookings.map((booking, idx) => {
+              const sess = allSessions[idx];
+              return (
+                <div key={booking.id} className="border-t border-gray-200 pt-2 first:border-0 first:pt-0">
+                  <p className="text-sm text-gray-500 mt-1">Slot {idx + 1}</p>
+                  <p className="font-medium text-gray-900">{sess ? `${formatDate(sess.sessionDate)} at ${formatTime(sess.startTime)}` : 'Session booked'}</p>
+                  <p className="text-xs text-gray-500">Ref: <span className="font-mono font-bold">{booking.referenceCode}</span></p>
+                </div>
+              );
+            })}
+            {event?.location && (
+              <><p className="text-sm text-gray-500 mt-2">Location</p><p className="font-medium text-gray-900">{event.location}</p></>
+            )}
+          </div>
+          <div className="flex flex-col gap-3">
+            <a href={backUrl} className="inline-block px-4 py-2 text-white rounded hover:opacity-90 transition-colors" style={{ backgroundColor: brandColor }}>← Back to sessions</a>
+            <a href="/cancel" className="text-sm text-red-600 hover:underline">Need to cancel later?</a>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // --- Waitlisted ---
   if (pageState.kind === 'waitlisted' && session) {
     return (
@@ -384,10 +454,21 @@ export default function BookSessionPage({
               {program?.logoUrl && (
                 <Image src={program.logoUrl} alt={`${programName} logo`} width={40} height={40} className="rounded" />
               )}
-              <h1 className="text-lg font-bold text-gray-900">Book {programName} Session</h1>
+              <h1 className="text-lg font-bold text-gray-900">Book {programName} Session{allSessions.length > 1 ? 's' : ''}</h1>
             </div>
-            <p className="text-gray-700 mt-1">{formatDate(session.sessionDate)} at {formatTime(session.startTime)}</p>
-            <p className="text-sm text-gray-500 mt-1">{session.bookingCount}/{maxAttendees} booked · {session.slotStatus}</p>
+            {allSessions.length > 1 ? (
+              <div className="space-y-1 mt-1">
+                <p className="text-sm text-gray-700 font-medium">{allSessions.length} slots selected:</p>
+                {allSessions.map((s, i) => (
+                  <p key={s.id} className="text-sm text-gray-600">• {formatDate(s.sessionDate)} at {formatTime(s.startTime)}</p>
+                ))}
+              </div>
+            ) : (
+              <>
+                <p className="text-gray-700 mt-1">{formatDate(session.sessionDate)} at {formatTime(session.startTime)}</p>
+                <p className="text-sm text-gray-500 mt-1">{session.bookingCount}/{maxAttendees} booked · {session.slotStatus}</p>
+              </>
+            )}
           </div>
         )}
 
@@ -519,7 +600,7 @@ export default function BookSessionPage({
             className="w-full py-2 px-4 text-white rounded font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             style={{ backgroundColor: brandColor }}
           >
-            {isSubmitting ? 'Booking…' : 'Book Session'}
+            {isSubmitting ? 'Booking…' : allSessions.length > 1 ? `Book ${allSessions.length} Sessions` : 'Book Session'}
           </button>
         </form>
       </div>
