@@ -61,6 +61,7 @@ export interface Session {
 export interface Booking {
   id: string;
   sessionId: string;
+  alias?: string;
   name: string;
   email: string;
   role: string;
@@ -166,5 +167,6 @@ export interface CareerMazeEvent {
   dates: string[];            // ISO date strings
   timeSlots: string[];        // Local time strings (HH:MM) in the event's timezone
   allowMultiSlot?: boolean;   // Whether attendees can book multiple slots
+  rooms?: Array<{ building: string; room: string }>;  // Meeting location rooms
   createdAt: Date;
 }

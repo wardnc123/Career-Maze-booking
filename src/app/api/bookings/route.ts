@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }); }
 
-  const { name, email, role, pf, sessionId, vpAlias, level, tenure } = body as Record<string, string>;
+  const { name, email, role, pf, sessionId, vpAlias, level, tenure, alias } = body as Record<string, string>;
   const missingFields: string[] = [];
   if (!name || typeof name !== 'string' || !name.trim()) missingFields.push('name');
   if (!email || typeof email !== 'string' || !email.trim()) missingFields.push('email');
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 });
 
   const bookingRequest: BookingRequest = { sessionId: sessionId.trim(), name: name.trim(), email: email.trim(), role: role.trim(), pf: pf.trim() };
-  const result = await createBooking({ ...bookingRequest, vpAlias: vpAlias?.trim() || '', level: level?.trim() || '', tenure: tenure?.trim() || '' });
+  const result = await createBooking({ ...bookingRequest, vpAlias: vpAlias?.trim() || '', level: level?.trim() || '', tenure: tenure?.trim() || '', alias: alias?.trim() || '' });
 
   if (result.status === 'confirmed') {
     await persistBooking(result.booking);

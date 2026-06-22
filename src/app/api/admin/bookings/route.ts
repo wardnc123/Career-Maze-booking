@@ -17,6 +17,7 @@ export async function GET() {
       status: b.status, referenceCode: b.referenceCode,
       promotedFromWaitlist: b.promotedFromWaitlist || false,
       isWaitlisted: false,
+      alias: b.alias || '',
       vpAlias: b.vpAlias || '',
       level: b.level || '',
       tenure: b.tenure || '',

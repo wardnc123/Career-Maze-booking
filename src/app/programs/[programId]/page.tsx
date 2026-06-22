@@ -99,7 +99,8 @@ export default function ProgramBookingPage({
         setProgram(prog);
         setEvents(eventsWithFutureSessions);
         setAllSessions(futureSessions);
-        if (eventsWithFutureSessions.length > 0) setSelectedEventId(eventsWithFutureSessions[0].id);
+        // Only auto-select if there's exactly 1 event; otherwise leave unselected
+        if (eventsWithFutureSessions.length === 1) setSelectedEventId(eventsWithFutureSessions[0].id);
         setLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -233,6 +234,7 @@ export default function ProgramBookingPage({
               onChange={(e) => { setSelectedEventId(e.target.value); setSelectedDate(''); }}
               className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
             >
+              <option value="">Select an event...</option>
               {events.map((event) => (
                 <option key={event.id} value={event.id}>{event.title}</option>
               ))}
@@ -240,39 +242,56 @@ export default function ProgramBookingPage({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-4 mb-6" role="list" aria-label="Slot status legend">
-          {LEGEND_ITEMS.map((item) => (
-            <div key={item.status} className="flex items-center gap-1.5 text-sm" role="listitem">
-              <span className={`inline-block w-3 h-3 rounded-full ${item.dot}`} aria-hidden="true" />
-              <span className="text-gray-700">{item.label}</span>
-            </div>
-          ))}
-        </div>
-
-        <nav aria-label="Date navigation" className="mb-6 overflow-x-auto">
-          <div className="flex gap-1 sm:gap-2 min-w-max pb-2">
-            {allDates.map((date) => {
-              const isSelected = date === selectedDate;
-              return (
-                <button
-                  key={date}
-                  onClick={() => setSelectedDate(date)}
-                  className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
-                    isSelected ? 'text-white shadow-sm' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
-                  }`}
-                  style={isSelected ? { backgroundColor: brandColor } : undefined}
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${formatDateLabel(date)}`}
-                >
-                  {formatDateLabel(date)}
-                </button>
-              );
-            })}
+        {selectedEventId === '' ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-sm">Please select an event above to see available time slots.</p>
           </div>
-        </nav>
+        ) : (
+          <>
+            {selectedEvent?.rooms && selectedEvent.rooms.length > 0 && (
+              <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <h3 className="text-sm font-medium text-gray-700 mb-1">📍 Meeting Location</h3>
+                {selectedEvent.rooms.map((r, i) => (
+                  <p key={i} className="text-sm text-gray-600">{r.building} — Room {r.room}</p>
+                ))}
+              </div>
+            )}
 
-        <SessionBlock title="Morning" sessions={morning} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} selectedSessionIds={selectedSessionIds} brandColor={brandColor} />
-        <SessionBlock title="Afternoon" sessions={afternoon} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} selectedSessionIds={selectedSessionIds} brandColor={brandColor} />
+            <div className="flex flex-wrap gap-4 mb-6" role="list" aria-label="Slot status legend">
+              {LEGEND_ITEMS.map((item) => (
+                <div key={item.status} className="flex items-center gap-1.5 text-sm" role="listitem">
+                  <span className={`inline-block w-3 h-3 rounded-full ${item.dot}`} aria-hidden="true" />
+                  <span className="text-gray-700">{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <nav aria-label="Date navigation" className="mb-6 overflow-x-auto">
+              <div className="flex gap-1 sm:gap-2 min-w-max pb-2">
+                {allDates.map((date) => {
+                  const isSelected = date === selectedDate;
+                  return (
+                    <button
+                      key={date}
+                      onClick={() => setSelectedDate(date)}
+                      className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
+                        isSelected ? 'text-white shadow-sm' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                      }`}
+                      style={isSelected ? { backgroundColor: brandColor } : undefined}
+                      aria-pressed={isSelected}
+                      aria-label={`Select ${formatDateLabel(date)}`}
+                    >
+                      {formatDateLabel(date)}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+
+            <SessionBlock title="Morning" sessions={morning} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} selectedSessionIds={selectedSessionIds} brandColor={brandColor} />
+            <SessionBlock title="Afternoon" sessions={afternoon} onSlotClick={handleSlotClick} maxAttendees={program.maxAttendees} selectedSessionIds={selectedSessionIds} brandColor={brandColor} />
+          </>
+        )}
 
         <div className="mt-8 pt-6 border-t border-gray-200 text-center">
           <p className="text-sm text-gray-500 mb-2">Need to manage your bookings?</p>

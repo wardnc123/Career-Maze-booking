@@ -56,6 +56,7 @@ function AdminSetupContent() {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [maxAttendees, setMaxAttendees] = useState(3);
   const [allowMultiSlot, setAllowMultiSlot] = useState(false);
+  const [rooms, setRooms] = useState<Array<{ building: string; room: string }>>([]);
   const [pageState, setPageState] = useState<PageState>('form');
   const [resultMessage, setResultMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -173,7 +174,7 @@ function AdminSetupContent() {
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId, maxAttendees, allowMultiSlot, ...(slotsPerDate ? { slotsPerDate } : {}) }),
+        body: JSON.stringify({ title: title.trim(), location: location.trim(), timezone, dates: getDatesInRange(startDate, endDate), timeSlots, programId, maxAttendees, allowMultiSlot, rooms: rooms.filter(r => r.building.trim() || r.room.trim()), ...(slotsPerDate ? { slotsPerDate } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -199,7 +200,7 @@ function AdminSetupContent() {
           <p className="text-gray-600 mb-6">{resultMessage}</p>
           <div className="flex gap-3 justify-center flex-wrap">
             <a href={programId !== 'default-career-maze' ? `/admin/programs/${programId}` : '/admin'} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors">View Admin Overview</a>
-            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); setDayOverrides({}); setDayCustomRangeOverrides({}); setExpandedDays(new Set()); setAllowMultiSlot(false); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
+            <button onClick={() => { setPageState('form'); setTitle(''); setLocation(''); setTimezone('Europe/London'); setStartDate(''); setEndDate(''); clearSlots(); setDayOverrides({}); setDayCustomRangeOverrides({}); setExpandedDays(new Set()); setAllowMultiSlot(false); setRooms([]); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors">Create Another</button>
           </div>
         </div>
       </main>
@@ -462,6 +463,26 @@ function AdminSetupContent() {
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
           />
           <p className="text-xs text-gray-500 mt-1">How many people can book each time slot before it becomes full.</p>
+        </section>
+
+        {/* Meeting Location (Rooms) */}
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Where do you want the attendees to meet?</h3>
+          <p className="text-sm text-gray-500 mb-3">Add building and room details. You can add multiple rooms.</p>
+          {rooms.map((room, idx) => (
+            <div key={idx} className="flex gap-2 mb-2 items-end">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Building</label>
+                <input type="text" value={room.building} onChange={(e) => setRooms(prev => prev.map((r, i) => i === idx ? { ...r, building: e.target.value } : r))} placeholder="e.g. LHR16" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Room</label>
+                <input type="text" value={room.room} onChange={(e) => setRooms(prev => prev.map((r, i) => i === idx ? { ...r, room: e.target.value } : r))} placeholder="e.g. 01.501" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <button onClick={() => setRooms(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded border border-red-200">Remove</button>
+            </div>
+          ))}
+          <button onClick={() => setRooms(prev => [...prev, { building: '', room: '' }])} className="mt-2 px-3 py-1.5 text-sm font-medium bg-gray-100 rounded hover:bg-gray-200 transition-colors">+ Add Room</button>
         </section>
 
         {/* Allow Multi-Slot */}

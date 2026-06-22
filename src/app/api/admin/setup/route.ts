@@ -13,10 +13,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   await ensureLoaded();
 
-  let body: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; slotsPerDate?: Record<string, string[]>; programId?: string; maxAttendees?: number; allowMultiSlot?: boolean };
+  let body: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; slotsPerDate?: Record<string, string[]>; programId?: string; maxAttendees?: number; allowMultiSlot?: boolean; rooms?: Array<{ building: string; room: string }> };
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-  const { title, location, timezone, dates, timeSlots, slotsPerDate, programId, maxAttendees, allowMultiSlot } = body;
+  const { title, location, timezone, dates, timeSlots, slotsPerDate, programId, maxAttendees, allowMultiSlot, rooms } = body;
   if (!title || typeof title !== 'string' || !title.trim()) return NextResponse.json({ error: 'Event title is required' }, { status: 400 });
   if (!dates || !Array.isArray(dates) || dates.length === 0) return NextResponse.json({ error: 'At least one date is required' }, { status: 400 });
   if (!timeSlots || !Array.isArray(timeSlots) || timeSlots.length === 0) return NextResponse.json({ error: 'At least one time slot is required' }, { status: 400 });
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
   // Persist to Postgres
   try {
     event.allowMultiSlot = allowMultiSlot || false;
+    event.rooms = rooms || [];
     await persistEvent(event);
     await persistSessions(sessions);
   } catch (err) {

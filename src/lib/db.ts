@@ -111,6 +111,14 @@ export async function initDb() {
     try {
       await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_multi_slot BOOLEAN DEFAULT false`;
     } catch { /* column already exists */ }
+    // Add rooms column if not exists
+    try {
+      await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS rooms JSONB DEFAULT '[]'`;
+    } catch { /* column already exists */ }
+    // Add alias column to bookings if not exists
+    try {
+      await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS alias TEXT DEFAULT ''`;
+    } catch { /* column already exists */ }
     console.log('[db] Tables initialized successfully');
   } catch (err) {
     console.error('[db] Failed to initialize tables:', err);

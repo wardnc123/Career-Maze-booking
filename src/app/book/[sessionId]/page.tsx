@@ -44,6 +44,7 @@ export default function BookSessionPage({
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
 
   // Form fields
+  const [alias, setAlias] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [vpAlias, setVpAlias] = useState('');
@@ -108,6 +109,7 @@ export default function BookSessionPage({
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
+    if (!alias.trim()) errors.alias = 'Alias is required';
     if (!name.trim()) errors.name = 'Name is required';
     if (!email.trim()) {
       errors.email = 'Email is required';
@@ -149,6 +151,7 @@ export default function BookSessionPage({
       }
 
       const bookingPayload = {
+        alias: alias.trim(),
         name: name.trim(),
         email: email.trim(),
         vpAlias: vpAlias.trim(),
@@ -478,8 +481,18 @@ export default function BookSessionPage({
 
         <form onSubmit={handleSubmit} noValidate className="bg-white rounded-lg shadow-md p-6 space-y-4">
           <div>
+            <label htmlFor="alias" className="block text-sm font-medium text-gray-700 mb-1">Alias <span className="text-red-500">*</span></label>
+            <input id="alias" type="text" value={alias} onChange={(e) => setAlias(e.target.value)} disabled={isSubmitting}
+              placeholder="e.g. wardnc"
+              className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.alias ? 'border-red-400' : 'border-gray-300'}`}
+              aria-invalid={!!fieldErrors.alias} aria-describedby={fieldErrors.alias ? 'alias-error' : undefined} />
+            {fieldErrors.alias && <p id="alias-error" className="text-red-500 text-xs mt-1">{fieldErrors.alias}</p>}
+          </div>
+
+          <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
             <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={isSubmitting}
+              placeholder="e.g. Nick Sephton-Ward"
               className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.name ? 'border-red-400' : 'border-gray-300'}`}
               aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? 'name-error' : undefined} />
             {fieldErrors.name && <p id="name-error" className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>}
@@ -488,6 +501,7 @@ export default function BookSessionPage({
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
             <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting}
+              placeholder="e.g. wardnc@amazon.co.uk"
               className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.email ? 'border-red-400' : 'border-gray-300'}`}
               aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'email-error' : undefined} />
             {fieldErrors.email && <p id="email-error" className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
@@ -496,7 +510,7 @@ export default function BookSessionPage({
           <div>
             <label htmlFor="vpAlias" className="block text-sm font-medium text-gray-700 mb-1">VP Alias <span className="text-red-500">*</span></label>
             <input id="vpAlias" type="text" value={vpAlias} onChange={(e) => setVpAlias(e.target.value)} disabled={isSubmitting}
-              placeholder="e.g. jeffb"
+              placeholder="e.g. marsegli"
               className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.vpAlias ? 'border-red-400' : 'border-gray-300'}`}
               aria-invalid={!!fieldErrors.vpAlias} aria-describedby={fieldErrors.vpAlias ? 'vpAlias-error' : undefined} />
             {fieldErrors.vpAlias && <p id="vpAlias-error" className="text-red-500 text-xs mt-1">{fieldErrors.vpAlias}</p>}

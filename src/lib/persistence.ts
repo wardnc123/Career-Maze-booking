@@ -29,6 +29,7 @@ export async function loadData(): Promise<AppData> {
       programId: r.program_id || 'default-career-maze',
       dates: r.dates || [], timeSlots: r.time_slots || [],
       allowMultiSlot: r.allow_multi_slot || false,
+      rooms: r.rooms || [],
       createdAt: new Date(r.created_at),
     }));
 
@@ -45,6 +46,7 @@ export async function loadData(): Promise<AppData> {
       role: r.role, pf: r.pf, status: r.status as Booking['status'],
       referenceCode: r.reference_code,
       customFields: r.custom_fields || null,
+      alias: r.alias || '',
       vpAlias: r.vp_alias || '',
       level: r.level || '',
       tenure: r.tenure || '',
@@ -69,9 +71,9 @@ export async function loadData(): Promise<AppData> {
 
 export async function saveEvent(event: CareerMazeEvent) {
   const sql = getDb();
-  await sql`INSERT INTO events (id, title, location, timezone, program_id, dates, time_slots, allow_multi_slot, created_at)
-    VALUES (${event.id}, ${event.title}, ${event.location}, ${event.timezone}, ${event.programId}, ${JSON.stringify(event.dates)}, ${JSON.stringify(event.timeSlots)}, ${event.allowMultiSlot || false}, ${event.createdAt.toISOString()})
-    ON CONFLICT (id) DO UPDATE SET title = ${event.title}, location = ${event.location}, timezone = ${event.timezone}, program_id = ${event.programId}, dates = ${JSON.stringify(event.dates)}, time_slots = ${JSON.stringify(event.timeSlots)}, allow_multi_slot = ${event.allowMultiSlot || false}`;
+  await sql`INSERT INTO events (id, title, location, timezone, program_id, dates, time_slots, allow_multi_slot, rooms, created_at)
+    VALUES (${event.id}, ${event.title}, ${event.location}, ${event.timezone}, ${event.programId}, ${JSON.stringify(event.dates)}, ${JSON.stringify(event.timeSlots)}, ${event.allowMultiSlot || false}, ${JSON.stringify(event.rooms || [])}, ${event.createdAt.toISOString()})
+    ON CONFLICT (id) DO UPDATE SET title = ${event.title}, location = ${event.location}, timezone = ${event.timezone}, program_id = ${event.programId}, dates = ${JSON.stringify(event.dates)}, time_slots = ${JSON.stringify(event.timeSlots)}, allow_multi_slot = ${event.allowMultiSlot || false}, rooms = ${JSON.stringify(event.rooms || [])}`;
 }
 
 export async function saveSession(session: Session) {
@@ -93,9 +95,9 @@ export async function saveSessions(sessions: Session[]) {
 
 export async function saveBooking(booking: Booking) {
   const sql = getDb();
-  await sql`INSERT INTO bookings (id, session_id, name, email, role, pf, status, reference_code, custom_fields, vp_alias, level, tenure, attended, created_at, cancelled_at)
-    VALUES (${booking.id}, ${booking.sessionId}, ${booking.name}, ${booking.email}, ${booking.role}, ${booking.pf}, ${booking.status}, ${booking.referenceCode}, ${booking.customFields ? JSON.stringify(booking.customFields) : null}, ${booking.vpAlias || ''}, ${booking.level || ''}, ${booking.tenure || ''}, ${booking.attended || false}, ${booking.createdAt.toISOString()}, ${booking.cancelledAt?.toISOString() || null})
-    ON CONFLICT (id) DO UPDATE SET status = ${booking.status}, cancelled_at = ${booking.cancelledAt?.toISOString() || null}, name = ${booking.name}, email = ${booking.email}, vp_alias = ${booking.vpAlias || ''}, level = ${booking.level || ''}, tenure = ${booking.tenure || ''}, attended = ${booking.attended || false}`;
+  await sql`INSERT INTO bookings (id, session_id, name, email, role, pf, status, reference_code, custom_fields, alias, vp_alias, level, tenure, attended, created_at, cancelled_at)
+    VALUES (${booking.id}, ${booking.sessionId}, ${booking.name}, ${booking.email}, ${booking.role}, ${booking.pf}, ${booking.status}, ${booking.referenceCode}, ${booking.customFields ? JSON.stringify(booking.customFields) : null}, ${booking.alias || ''}, ${booking.vpAlias || ''}, ${booking.level || ''}, ${booking.tenure || ''}, ${booking.attended || false}, ${booking.createdAt.toISOString()}, ${booking.cancelledAt?.toISOString() || null})
+    ON CONFLICT (id) DO UPDATE SET status = ${booking.status}, cancelled_at = ${booking.cancelledAt?.toISOString() || null}, name = ${booking.name}, email = ${booking.email}, alias = ${booking.alias || ''}, vp_alias = ${booking.vpAlias || ''}, level = ${booking.level || ''}, tenure = ${booking.tenure || ''}, attended = ${booking.attended || false}`;
 }
 
 export async function saveWaitlistEntry(entry: WaitlistEntry) {
