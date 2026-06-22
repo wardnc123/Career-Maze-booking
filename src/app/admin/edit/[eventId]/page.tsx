@@ -35,6 +35,7 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
+  const [rooms, setRooms] = useState<Array<{ building: string; room: string }>>([]);
   const [pageState, setPageState] = useState<PageState>('loading');
   const [resultMessage, setResultMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -56,6 +57,7 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
 
         setTitle(event.title);
         setSelectedSlots(new Set(event.timeSlots));
+        setRooms(event.rooms || []);
         if (event.dates.length > 0) {
           setStartDate(event.dates[0]);
           setEndDate(event.dates[event.dates.length - 1]);
@@ -114,6 +116,7 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
           title: title.trim(),
           dates: getDatesInRange(startDate, endDate),
           timeSlots: [...selectedSlots].sort(),
+          rooms,
         }),
       });
       const data = await res.json();
@@ -172,6 +175,26 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
         <section className="mb-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-2">Title</h3>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </section>
+
+        {/* Meeting Location */}
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Meeting Location</h3>
+          <p className="text-sm text-gray-500 mb-3">Where do you want the attendees to meet?</p>
+          {rooms.map((room, idx) => (
+            <div key={idx} className="flex gap-2 mb-2 items-end">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Building</label>
+                <input type="text" value={room.building} onChange={(e) => setRooms(prev => prev.map((r, i) => i === idx ? { ...r, building: e.target.value } : r))} placeholder="e.g. LHR16" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Room</label>
+                <input type="text" value={room.room} onChange={(e) => setRooms(prev => prev.map((r, i) => i === idx ? { ...r, room: e.target.value } : r))} placeholder="e.g. 01.501" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <button onClick={() => setRooms(prev => prev.filter((_, i) => i !== idx))} className="px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded">Remove</button>
+            </div>
+          ))}
+          <button onClick={() => setRooms(prev => [...prev, { building: '', room: '' }])} className="mt-2 px-3 py-1.5 text-sm font-medium bg-gray-100 rounded hover:bg-gray-200 transition-colors">+ Add Room</button>
         </section>
 
         {/* Dates */}
