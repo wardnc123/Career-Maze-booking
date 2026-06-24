@@ -74,14 +74,24 @@ export default function BookSessionPage({
       setSessionIds(ids);
 
       try {
-        // Fetch all sessions
-        const sessionResponses = await Promise.all(ids.map(id => fetch(`/api/sessions/${id}`)));
+        // Fetch all sessions individually
         const sessionsData: Session[] = [];
-        for (const res of sessionResponses) {
-          if (!res.ok) { if (!cancelled) setPageState({ kind: 'not-found' }); return; }
-          sessionsData.push(await res.json());
+        for (const id of ids) {
+          try {
+            const res = await fetch(`/api/sessions/${id}`);
+            if (res.ok) {
+              const data = await res.json();
+              // Handle case where API returns an array (multi-ID)
+              if (Array.isArray(data)) {
+                sessionsData.push(...data);
+              } else {
+                sessionsData.push(data);
+              }
+            }
+          } catch { /* skip failed fetches */ }
         }
         if (cancelled) return;
+        if (sessionsData.length === 0) { setPageState({ kind: 'not-found' }); return; }
         setSession(sessionsData[0]);
         setAllSessions(sessionsData);
 
