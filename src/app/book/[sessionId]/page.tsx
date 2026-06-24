@@ -69,7 +69,7 @@ export default function BookSessionPage({
     async function init() {
       const { sessionId: rawId } = await params;
       if (cancelled) return;
-      const ids = rawId.split(',');
+      const ids = decodeURIComponent(rawId).split(',');
       setSessionId(ids[0]);
       setSessionIds(ids);
 
