@@ -67,7 +67,13 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
 
       // Filter sessions by program events
       const programSessions = (sessionsData as Session[]).filter(s => programEventIds.has(s.eventId));
-      setAllSessions(programSessions);
+      // Exclude weekend sessions from display
+      const weekdaySessions = programSessions.filter(s => {
+        const d = new Date(s.sessionDate + 'T00:00:00Z');
+        const day = d.getUTCDay();
+        return day !== 0 && day !== 6;
+      });
+      setAllSessions(weekdaySessions);
 
       // Filter bookings by program events
       const eventTitles = new Set(programEvents.map(e => e.title));
@@ -364,7 +370,13 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                                     if (sessionsRes.ok) {
                                       const freshSessions: Session[] = await sessionsRes.json();
                                       const programEventIds = new Set(events.map(e => e.id));
-                                      setAllSessions(freshSessions.filter(s => programEventIds.has(s.eventId)));
+                                      const refreshed = freshSessions.filter(s => programEventIds.has(s.eventId));
+                                      // Exclude weekend sessions from display
+                                      setAllSessions(refreshed.filter(s => {
+                                        const d = new Date(s.sessionDate + 'T00:00:00Z');
+                                        const day = d.getUTCDay();
+                                        return day !== 0 && day !== 6;
+                                      }));
                                     }
                                   }} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">Remove</button>
                                 )}
