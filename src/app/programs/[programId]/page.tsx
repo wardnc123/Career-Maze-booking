@@ -91,14 +91,21 @@ export default function ProgramBookingPage({
         const today = new Date().toISOString().slice(0, 10);
         const futureSessions = programSessions.filter(s => s.sessionDate >= today);
 
-        // Filter out events that have no future sessions remaining
+        // Filter out weekend sessions (Saturday and Sunday) from user-facing booking page
+        const weekdaySessions = futureSessions.filter(s => {
+          const d = new Date(s.sessionDate + 'T00:00:00Z');
+          const day = d.getUTCDay();
+          return day !== 0 && day !== 6; // 0 = Sunday, 6 = Saturday
+        });
+
+        // Filter out events that have no future weekday sessions remaining
         const eventsWithFutureSessions = programEvents.filter(ev => {
-          return futureSessions.some(s => s.eventId === ev.id);
+          return weekdaySessions.some(s => s.eventId === ev.id);
         });
 
         setProgram(prog);
         setEvents(eventsWithFutureSessions);
-        setAllSessions(futureSessions);
+        setAllSessions(weekdaySessions);
         // Only auto-select if there's exactly 1 event; otherwise leave unselected
         if (eventsWithFutureSessions.length === 1) setSelectedEventId(eventsWithFutureSessions[0].id);
         setLoading(false);
