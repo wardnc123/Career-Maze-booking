@@ -78,7 +78,14 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
       // Filter bookings by program events
       const eventTitles = new Set(programEvents.map(e => e.title));
       const programBookings = (bookingsData as AdminBooking[]).filter(b => eventTitles.has(b.eventTitle));
-      setAllBookings(programBookings);
+      // Exclude weekend bookings from display
+      const weekdayBookings = programBookings.filter(b => {
+        if (!b.sessionDate) return true; // keep bookings without a date (shouldn't happen)
+        const d = new Date(b.sessionDate + 'T00:00:00Z');
+        const day = d.getUTCDay();
+        return day !== 0 && day !== 6;
+      });
+      setAllBookings(weekdayBookings);
 
       // Only select active events by default (those with at least one future session)
       const today = new Date().toISOString().slice(0, 10);
@@ -364,8 +371,14 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                                     ]);
                                     if (bookingsRes.ok) {
                                       const fresh: AdminBooking[] = await bookingsRes.json();
-                                      const eventTitles = new Set(events.filter(ev => ev.programId === programId).map(ev => ev.title));
-                                      setAllBookings(fresh.filter(fb => eventTitles.has(fb.eventTitle)));
+                                      const eventTitles2 = new Set(events.filter(ev => ev.programId === programId).map(ev => ev.title));
+                                      const freshFiltered = fresh.filter(fb => eventTitles2.has(fb.eventTitle)).filter(fb => {
+                                        if (!fb.sessionDate) return true;
+                                        const d = new Date(fb.sessionDate + 'T00:00:00Z');
+                                        const day = d.getUTCDay();
+                                        return day !== 0 && day !== 6;
+                                      });
+                                      setAllBookings(freshFiltered);
                                     }
                                     if (sessionsRes.ok) {
                                       const freshSessions: Session[] = await sessionsRes.json();
