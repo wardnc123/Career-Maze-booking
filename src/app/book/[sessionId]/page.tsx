@@ -389,6 +389,16 @@ export default function BookSessionPage({
             )}
           </div>
           <div className="flex flex-col gap-3">
+            {pageState.bookings.map((booking, idx) => {
+              const sess = allSessions[idx];
+              if (!sess) return null;
+              return (
+                <div key={booking.id} className="flex gap-2">
+                  <button onClick={() => openInOutlook(booking, sess)} className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">📧 Outlook (Slot {idx + 1})</button>
+                  <button onClick={() => downloadCalendar(booking, sess)} className="flex-1 px-3 py-2 bg-green-600 text-white text-xs rounded hover:bg-green-700">📅 .ics (Slot {idx + 1})</button>
+                </div>
+              );
+            })}
             <a href={backUrl} className="inline-block px-4 py-2 text-white rounded hover:opacity-90 transition-colors" style={{ backgroundColor: brandColor }}>← Back to sessions</a>
             <a href="/cancel" className="text-sm text-red-600 hover:underline">Need to cancel later?</a>
           </div>
