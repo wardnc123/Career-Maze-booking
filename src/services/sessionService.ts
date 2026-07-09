@@ -134,10 +134,12 @@ export function deleteEvent(eventId: string): boolean {
  * - Dates/time slots change: removes sessions that no longer match,
  *   adds new sessions for newly added date/slot combos,
  *   preserves existing sessions (and their bookings) that still match.
+ * - slotsPerDate: optional per-day overrides. When a date has an entry
+ *   in slotsPerDate, those slots are used instead of the global timeSlots.
  */
 export function updateEvent(
   eventId: string,
-  updates: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; maxAttendees?: number }
+  updates: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; slotsPerDate?: Record<string, string[]>; maxAttendees?: number }
 ): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number } | null {
   const event = getEvents_().find((e) => e.id === eventId);
   if (!event) return null;
@@ -151,11 +153,14 @@ export function updateEvent(
 
   const newDates = updates.dates ? [...updates.dates].sort() : event.dates;
   const newTimeSlots = updates.timeSlots ? [...updates.timeSlots].sort() : event.timeSlots;
+  const slotsPerDate = updates.slotsPerDate;
 
-  // Build set of desired (date, utcTime) combos
+  // Build set of desired (date, startTime) combos
+  // If slotsPerDate has an entry for a given date, use those slots; otherwise use global timeSlots
   const desiredCombos = new Set<string>();
   for (const date of newDates) {
-    for (const localTime of newTimeSlots) {
+    const slotsForDay = (slotsPerDate && slotsPerDate[date]) ? slotsPerDate[date] : newTimeSlots;
+    for (const localTime of slotsForDay) {
       desiredCombos.add(`${date}|${localTime}:00`);
     }
   }

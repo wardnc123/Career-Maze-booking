@@ -29,12 +29,21 @@ function getDatesInRange(start: string, end: string): string[] {
   return dates;
 }
 
+function formatDateLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `${days[d.getUTCDay()]}, ${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+}
+
 export default function EditEventPage({ params }: { params: Promise<{ eventId: string }> }) {
   const [eventId, setEventId] = useState('');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
+  const [dayOverrides, setDayOverrides] = useState<Record<string, Set<string>>>({});
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [rooms, setRooms] = useState<Array<{ building: string; room: string }>>([]);
   const [pageState, setPageState] = useState<PageState>('loading');
   const [resultMessage, setResultMessage] = useState('');
@@ -62,6 +71,10 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
           setStartDate(event.dates[0]);
           setEndDate(event.dates[event.dates.length - 1]);
         }
+
+        // Load existing per-day overrides from sessions
+        // We detect overrides by checking if some dates have different slots
+        // For now, load the global slots — user can customize from the UI
         setPageState('form');
       } catch {
         if (!cancelled) setPageState('error');
@@ -97,16 +110,107 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
 
   const clearSlots = useCallback(() => setSelectedSlots(new Set()), []);
 
+  // Per-day override helpers
+  const toggleDayExpanded = useCallback((date: string) => {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date); else next.add(date);
+      return next;
+    });
+  }, []);
+
+  const enableDayOverride = useCallback((date: string) => {
+    setDayOverrides((prev) => {
+      if (prev[date]) return prev;
+      // Initialize with the current global slots
+      return { ...prev, [date]: new Set(selectedSlots) };
+    });
+  }, [selectedSlots]);
+
+  const disableDayOverride = useCallback((date: string) => {
+    setDayOverrides((prev) => {
+      const next = { ...prev };
+      delete next[date];
+      return next;
+    });
+  }, []);
+
+  const toggleDayOverrideSlot = useCallback((date: string, slot: string) => {
+    setDayOverrides((prev) => {
+      const next = { ...prev };
+      const daySlots = new Set(next[date] || []);
+      if (daySlots.has(slot)) daySlots.delete(slot); else daySlots.add(slot);
+      next[date] = daySlots;
+      return next;
+    });
+  }, []);
+
+  const selectDayMorning = useCallback((date: string) => {
+    setDayOverrides((prev) => {
+      const next = { ...prev };
+      const daySlots = new Set(next[date] || []);
+      ALL_TIME_SLOTS.filter((t) => t < '12:00').forEach((t) => daySlots.add(t));
+      next[date] = daySlots;
+      return next;
+    });
+  }, []);
+
+  const selectDayAfternoon = useCallback((date: string) => {
+    setDayOverrides((prev) => {
+      const next = { ...prev };
+      const daySlots = new Set(next[date] || []);
+      ALL_TIME_SLOTS.filter((t) => t >= '12:00').forEach((t) => daySlots.add(t));
+      next[date] = daySlots;
+      return next;
+    });
+  }, []);
+
+  const clearDaySlots = useCallback((date: string) => {
+    setDayOverrides((prev) => {
+      const next = { ...prev };
+      next[date] = new Set();
+      return next;
+    });
+  }, []);
+
   const previewDates = startDate && endDate && startDate <= endDate ? getDatesInRange(startDate, endDate) : [];
+
+  // Calculate total sessions considering overrides
+  const totalSessions = previewDates.reduce((sum, date) => {
+    if (dayOverrides[date]) {
+      return sum + dayOverrides[date].size;
+    }
+    return sum + selectedSlots.size;
+  }, 0);
 
   async function handleSave() {
     if (!title.trim()) { setErrorMessage('Title is required.'); return; }
     if (!startDate || !endDate) { setErrorMessage('Please select dates.'); return; }
     if (startDate > endDate) { setErrorMessage('End date must be after start date.'); return; }
-    if (selectedSlots.size === 0) { setErrorMessage('Select at least one time slot.'); return; }
+    if (selectedSlots.size === 0) { setErrorMessage('Select at least one global time slot.'); return; }
+
+    // Check that days with overrides have at least one slot
+    for (const [date, slots] of Object.entries(dayOverrides)) {
+      if (slots.size === 0) {
+        setErrorMessage(`Day ${formatDateLabel(date)} has a custom override with no slots selected. Either select slots or remove the override.`);
+        return;
+      }
+    }
 
     setPageState('saving');
     setErrorMessage('');
+
+    // Build slotsPerDate from dayOverrides
+    let slotsPerDate: Record<string, string[]> | undefined;
+    if (Object.keys(dayOverrides).length > 0) {
+      slotsPerDate = {};
+      for (const [date, slots] of Object.entries(dayOverrides)) {
+        if (slots.size > 0) {
+          slotsPerDate[date] = [...slots].sort();
+        }
+      }
+      if (Object.keys(slotsPerDate).length === 0) slotsPerDate = undefined;
+    }
 
     try {
       const res = await fetch(`/api/admin/setup/${eventId}`, {
@@ -117,6 +221,7 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
           dates: getDatesInRange(startDate, endDate),
           timeSlots: [...selectedSlots].sort(),
           rooms,
+          ...(slotsPerDate ? { slotsPerDate } : {}),
         }),
       });
       const data = await res.json();
@@ -213,9 +318,10 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
           {previewDates.length > 0 && <p className="mt-2 text-sm text-gray-500">{previewDates.length} days</p>}
         </section>
 
-        {/* Time slots */}
+        {/* Global Time Slots */}
         <section className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Time Slots</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Default Time Slots</h3>
+          <p className="text-sm text-gray-500 mb-3">These slots apply to all days unless you customize a specific day below.</p>
           <div className="flex gap-2 mb-3">
             <button onClick={selectMorning} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Morning</button>
             <button onClick={selectAfternoon} className="px-3 py-1 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200">Afternoon</button>
@@ -226,8 +332,84 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
               <button key={slot} onClick={() => toggleSlot(slot)} className={`px-2 py-2 rounded border text-sm font-medium transition-colors ${selectedSlots.has(slot) ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{slot}</button>
             ))}
           </div>
-          <p className="mt-2 text-sm text-gray-500">{selectedSlots.size} slots selected</p>
+          <p className="mt-2 text-sm text-gray-500">{selectedSlots.size} slots selected (default)</p>
         </section>
+
+        {/* Per-Day Overrides */}
+        {previewDates.length > 0 && (
+          <section className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Per-Day Customization</h3>
+            <p className="text-sm text-gray-500 mb-3">
+              Click &quot;Customize&quot; on any day to set different time slots for that specific day.
+              Days without customization use the default slots above.
+            </p>
+            <div className="space-y-2">
+              {previewDates.map((date) => {
+                const hasOverride = !!dayOverrides[date];
+                const isExpanded = expandedDays.has(date);
+                const daySlotCount = hasOverride ? dayOverrides[date].size : selectedSlots.size;
+
+                return (
+                  <div key={date} className={`border rounded-lg ${hasOverride ? 'border-amber-300 bg-amber-50' : 'border-gray-200'}`}>
+                    {/* Day header */}
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => toggleDayExpanded(date)} className="text-gray-500 hover:text-gray-700" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+                          <span className="text-sm">{isExpanded ? '▼' : '▶'}</span>
+                        </button>
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">{formatDateLabel(date)}</span>
+                          <span className="ml-2 text-xs text-gray-500">({daySlotCount} slots)</span>
+                        </div>
+                        {hasOverride && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Custom</span>}
+                      </div>
+                      <div>
+                        {!hasOverride ? (
+                          <button
+                            onClick={() => { enableDayOverride(date); setExpandedDays(prev => new Set([...prev, date])); }}
+                            className="text-xs px-3 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 font-medium"
+                          >
+                            Customize
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { disableDayOverride(date); setExpandedDays(prev => { const n = new Set(prev); n.delete(date); return n; }); }}
+                            className="text-xs px-3 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100 font-medium"
+                          >
+                            Reset to Default
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expanded slot grid */}
+                    {isExpanded && hasOverride && (
+                      <div className="px-4 pb-4 border-t border-amber-200 pt-3">
+                        <div className="flex gap-2 mb-3">
+                          <button onClick={() => selectDayMorning(date)} className="px-2 py-1 text-xs font-medium bg-white border border-gray-300 rounded hover:bg-gray-50">Morning</button>
+                          <button onClick={() => selectDayAfternoon(date)} className="px-2 py-1 text-xs font-medium bg-white border border-gray-300 rounded hover:bg-gray-50">Afternoon</button>
+                          <button onClick={() => clearDaySlots(date)} className="px-2 py-1 text-xs font-medium bg-white border border-gray-300 rounded hover:bg-gray-50">Clear</button>
+                        </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
+                          {ALL_TIME_SLOTS.map((slot) => (
+                            <button
+                              key={slot}
+                              onClick={() => toggleDayOverrideSlot(date, slot)}
+                              className={`px-1.5 py-1.5 rounded border text-xs font-medium transition-colors ${dayOverrides[date]?.has(slot) ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-amber-700">{dayOverrides[date]?.size || 0} custom slots for this day</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Summary */}
         <section className="mb-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -235,8 +417,11 @@ export default function EditEventPage({ params }: { params: Promise<{ eventId: s
           <div className="text-sm text-gray-700 space-y-1">
             <p>Event: {title || '—'}</p>
             <p>Days: {previewDates.length || '—'}</p>
-            <p>Slots per day: {selectedSlots.size || '—'}</p>
-            <p>Total sessions: {previewDates.length * selectedSlots.size || '—'}</p>
+            <p>Default slots per day: {selectedSlots.size || '—'}</p>
+            {Object.keys(dayOverrides).length > 0 && (
+              <p>Days with custom slots: {Object.keys(dayOverrides).length}</p>
+            )}
+            <p className="font-medium">Total sessions: {totalSessions || '—'}</p>
           </div>
         </section>
 

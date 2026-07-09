@@ -15,15 +15,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   await ensureLoaded();
   const { eventId } = await params;
 
-  let body: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; rooms?: Array<{ building: string; room: string }> };
+  let body: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; slotsPerDate?: Record<string, string[]>; rooms?: Array<{ building: string; room: string }> };
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-  const { title, location, timezone, dates, timeSlots, rooms } = body;
+  const { title, location, timezone, dates, timeSlots, slotsPerDate, rooms } = body;
   if (title !== undefined && (!title || !title.trim())) return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
   if (dates !== undefined && (!Array.isArray(dates) || dates.length === 0)) return NextResponse.json({ error: 'At least one date is required' }, { status: 400 });
   if (timeSlots !== undefined && (!Array.isArray(timeSlots) || timeSlots.length === 0)) return NextResponse.json({ error: 'At least one time slot is required' }, { status: 400 });
 
-  const result = updateEvent(eventId, { title: title?.trim(), location: location !== undefined ? location.trim() : undefined, timezone: timezone !== undefined ? timezone.trim() : undefined, dates, timeSlots });
+  // Validate slotsPerDate if provided
+  if (slotsPerDate && typeof slotsPerDate === 'object') {
+    for (const [date, slots] of Object.entries(slotsPerDate)) {
+      if (!Array.isArray(slots) || slots.length === 0) {
+        return NextResponse.json({ error: `Invalid slots for date ${date}: must be a non-empty array` }, { status: 400 });
+      }
+    }
+  }
+
+  const result = updateEvent(eventId, { title: title?.trim(), location: location !== undefined ? location.trim() : undefined, timezone: timezone !== undefined ? timezone.trim() : undefined, dates, timeSlots, slotsPerDate });
   if (!result) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
   // Update rooms if provided
