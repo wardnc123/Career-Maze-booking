@@ -140,7 +140,7 @@ export function deleteEvent(eventId: string): boolean {
 export function updateEvent(
   eventId: string,
   updates: { title?: string; location?: string; timezone?: string; dates?: string[]; timeSlots?: string[]; slotsPerDate?: Record<string, string[]>; maxAttendees?: number }
-): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number } | null {
+): { event: CareerMazeEvent; sessionsAdded: number; sessionsRemoved: number; removedSessionIds: string[] } | null {
   const event = getEvents_().find((e) => e.id === eventId);
   if (!event) return null;
 
@@ -181,6 +181,7 @@ export function updateEvent(
       sessionsRemoved++;
     }
   }
+  const removedSessionIds = [...toRemoveIds];
   if (toRemoveIds.size > 0) {
     removeSessionsById(toRemoveIds);
   }
@@ -207,7 +208,7 @@ export function updateEvent(
   event.dates = newDates;
   event.timeSlots = newTimeSlots;
 
-  return { event, sessionsAdded, sessionsRemoved };
+  return { event, sessionsAdded, sessionsRemoved, removedSessionIds };
 }
 
 // ─── Default session generation (for tests) ─────────────────────────────────

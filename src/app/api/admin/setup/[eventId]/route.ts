@@ -42,7 +42,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   // Persist changes to Postgres
   await persistEvent(result.event);
-  // Save new sessions and delete removed ones
+  // Delete removed sessions from database
+  if (result.removedSessionIds && result.removedSessionIds.length > 0) {
+    await persistDeleteSessions(result.removedSessionIds);
+  }
+  // Save new/updated sessions
   const { getSessions } = await import('@/services/sessionService');
   const eventSessions = getSessions({ eventId });
   await persistSessions(eventSessions);
