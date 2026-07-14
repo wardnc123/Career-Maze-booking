@@ -2,7 +2,7 @@
 // Call ensureLoaded() at the start of any API route.
 // Individual persist functions are called after mutations.
 
-import { loadData, saveEvent, saveSessions, saveSession, saveBooking, saveWaitlistEntry, deleteWaitlistEntry, deleteEventFromDb, deleteSessionsFromDb, deleteProgramFromDb, loadPrograms, saveProgram } from './persistence';
+import { loadData, saveEvent, saveSessions, saveSession, saveBooking, saveWaitlistEntry, deleteWaitlistEntry, deleteEventFromDb, deleteSessionsFromDb, deleteSessionsByEventIdFromDb, deleteProgramFromDb, loadPrograms, saveProgram } from './persistence';
 import { initDb, getDbUrl } from './db';
 import type { Session, Booking, WaitlistEntry, CareerMazeEvent, Program } from '@/models/types';
 
@@ -45,6 +45,7 @@ export async function persistWaitlistEntry(w: WaitlistEntry) { if (hasDb()) awai
 export async function persistDeleteWaitlist(id: string) { if (hasDb()) await deleteWaitlistEntry(id); }
 export async function persistDeleteEvent(eventId: string) { if (hasDb()) await deleteEventFromDb(eventId); }
 export async function persistDeleteSessions(ids: string[]) { if (hasDb()) await deleteSessionsFromDb(ids); }
+export async function persistDeleteSessionsByEventId(eventId: string) { if (hasDb()) await deleteSessionsByEventIdFromDb(eventId); }
 export async function persistDeleteProgram(programId: string) { if (hasDb()) await deleteProgramFromDb(programId); }
 export async function persistProgram(p: Program) { if (hasDb()) await saveProgram(p); }
 

@@ -152,6 +152,11 @@ export async function deleteSessionsFromDb(sessionIds: string[]) {
   }
 }
 
+export async function deleteSessionsByEventIdFromDb(eventId: string) {
+  const sql = getDb();
+  await sql`DELETE FROM sessions WHERE event_id = ${eventId}`;
+}
+
 // Legacy saveData — kept for compatibility but now saves to Postgres
 export async function saveData(data: AppData): Promise<void> {
   // No-op — individual operations handle persistence now

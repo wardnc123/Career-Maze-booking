@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEvent, updateEvent, deleteEvent } from '@/services/sessionService';
-import { ensureLoaded, persistEvent, persistSessions, persistDeleteEvent, persistDeleteSessions } from '@/lib/dataManager';
+import { ensureLoaded, persistEvent, persistSessions, persistDeleteEvent, persistDeleteSessions, persistDeleteSessionsByEventId } from '@/lib/dataManager';
 import { noCacheHeaders } from '@/lib/apiHeaders';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -42,16 +42,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   // Persist changes to Postgres
   await persistEvent(result.event);
-  // Nuclear approach: delete ALL sessions for this event from DB, then re-insert the correct ones
-  // This ensures the DB matches exactly what's in memory after updateEvent()
+  // Delete ALL sessions for this event from DB, then re-insert the correct ones
+  await persistDeleteSessionsByEventId(eventId);
+  // Re-insert only the sessions that should exist
   const { getSessions } = await import('@/services/sessionService');
   const eventSessions = getSessions({ eventId });
-  
-  // Get ALL session IDs currently in DB for this event and delete them
-  const sql = (await import('@/lib/db')).getDb();
-  await sql`DELETE FROM sessions WHERE event_id = ${eventId}`;
-  
-  // Re-insert only the sessions that should exist
   await persistSessions(eventSessions);
 
   return NextResponse.json({ message: 'Event updated', event: result.event, sessionsAdded: result.sessionsAdded, sessionsRemoved: result.sessionsRemoved }, { headers: noCacheHeaders });
