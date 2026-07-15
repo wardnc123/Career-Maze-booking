@@ -29,7 +29,7 @@ interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
-  vpAlias: string; level: string; tenure: string; attended: boolean;
+  alias: string; vpAlias: string; level: string; tenure: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
 }
@@ -290,7 +290,15 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
           </label>
           <button onClick={() => {
             const filtered = allBookings.filter(b => b.status === 'confirmed' && (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle)));
-            const csv = 'Program,Event,Name,Email,Role,PF,Date,Time,Status,Reference\n' + filtered.map(b => `"${program.name}","${b.eventTitle}","${b.name}","${b.email}","${b.role}","${b.pf}","${b.sessionDate}","${b.startTime.slice(0,5)}","${b.status}","${b.referenceCode}"`).join('\n');
+            // Sort by date then time
+            filtered.sort((a, b) => {
+              if (a.sessionDate !== b.sessionDate) return a.sessionDate.localeCompare(b.sessionDate);
+              return a.startTime.localeCompare(b.startTime);
+            });
+            const csv = 'Date,Time,Name,Email,Alias,Tenure,Level\n' + filtered.map(b => {
+              const alias = (b.alias || '').split('@')[0];
+              return `"${b.sessionDate}","${b.startTime.slice(0,5)}","${b.name}","${b.email}","${alias}","${b.tenure || ''}","${b.level || ''}"`;
+            }).join('\n');
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `${program.name.toLowerCase().replace(/\s+/g, '-')}-bookings.csv`;
