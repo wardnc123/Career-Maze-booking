@@ -131,21 +131,35 @@ export function exportBookings(filters?: import('@/models/types').SessionFilter)
   const filteredSessions = getSessions(filters);
   const sessionIds = new Set(filteredSessions.map((s) => s.id));
   const sessionMap = new Map(filteredSessions.map((s) => [s.id, s]));
-  const filtered = getBookingsStore().filter((b) => sessionIds.has(b.sessionId));
+  const filtered = getBookingsStore().filter((b) => sessionIds.has(b.sessionId) && b.status === 'confirmed');
 
-  // Build event and program lookup maps
-  const events = getEventsStore();
-  const programs = getProgramsStore();
-  const eventMap = new Map(events.map((e) => [e.id, e]));
-  const programMap = new Map(programs.map((p) => [p.id, p]));
+  // Sort by date then time
+  filtered.sort((a, b) => {
+    const sa = sessionMap.get(a.sessionId);
+    const sb = sessionMap.get(b.sessionId);
+    const dateA = sa?.sessionDate ?? '';
+    const dateB = sb?.sessionDate ?? '';
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const timeA = sa?.startTime ?? '';
+    const timeB = sb?.startTime ?? '';
+    return timeA.localeCompare(timeB);
+  });
 
-  const header = 'Booking ID,Session Date,Session Time,Name,Email,Role,PF,Booking Timestamp,Status,Program';
+  const header = 'Date,Time,Name,Email,Alias,Tenure,Level';
   const rows = filtered.map((b) => {
     const s = sessionMap.get(b.sessionId);
-    const event = s ? eventMap.get(s.eventId) : undefined;
-    const program = event ? programMap.get(event.programId) : undefined;
-    const programName = program ? program.name : '';
-    return [b.id, s?.sessionDate ?? '', s?.startTime ?? '', esc(b.name), esc(b.email), esc(b.role), esc(b.pf), b.createdAt.toISOString(), b.status, esc(programName)].join(',');
+    // Strip @amazon... from alias if present
+    const rawAlias = b.alias || '';
+    const alias = rawAlias.includes('@') ? rawAlias.split('@')[0] : rawAlias;
+    return [
+      s?.sessionDate ?? '',
+      s?.startTime?.slice(0, 5) ?? '',
+      esc(b.name),
+      esc(b.email),
+      esc(alias),
+      esc(b.tenure || ''),
+      esc(b.level || ''),
+    ].join(',');
   });
   return [header, ...rows].join('\n');
 }
