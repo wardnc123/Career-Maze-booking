@@ -3,14 +3,26 @@
 import { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CareerMazeEvent, Program } from '@/models/types';
+import leadershipData from '@/data/leadershipData.json';
 
 interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
   status: string; referenceCode: string; promotedFromWaitlist: boolean;
   isWaitlisted: boolean;
-  vpAlias: string; level: string; tenure: string; attended: boolean;
+  alias: string; vpAlias: string; level: string; tenure: string; attended: boolean;
   sessionDate: string; startTime: string;
   eventTitle: string; eventLocation: string;
+}
+
+interface LeaderDirector {
+  name: string; level: string; vpAlias: string; pf: string; glTeam: string;
+  l3: number; l4: number; l5: number; l6: number; l7: number; l8: number; l99: number;
+  totalHC: number; expectedMM: number; expectedSignups: number;
+}
+
+interface LeaderVP {
+  name: string; totalHC: number; expectedMM: number; expectedSignups: number;
+  directors: LeaderDirector[];
 }
 
 export default function InsightsPage({ params }: { params: Promise<{ programId: string }> }) {
@@ -27,6 +39,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   const [allTenuresChecked, setAllTenuresChecked] = useState(true);
   const [showAllVPs, setShowAllVPs] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'insights' | 'leadership'>('insights');
 
   useEffect(() => {
     Promise.all([
@@ -228,6 +241,41 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   // Bar chart data
   const maxLevelCount = useMemo(() => Math.max(...levelBreakdown.map(r => r.signups), 1), [levelBreakdown]);
 
+  // Leadership tracker: match bookings by VP alias to the static reference data
+  const leadershipTracker = useMemo(() => {
+    // Count confirmed bookings per VP alias (Career Maze sign-ups)
+    const signupsByVP = new Map<string, number>();
+    const mmByVP = new Map<string, number>();
+    for (const b of allBookings) {
+      if (b.status !== 'confirmed') continue;
+      const vp = (b.vpAlias || '').toLowerCase().trim();
+      if (!vp) continue;
+      signupsByVP.set(vp, (signupsByVP.get(vp) || 0) + 1);
+    }
+
+    return (leadershipData as LeaderVP[]).map(vp => {
+      // Find VP alias from their directors
+      const vpAlias = vp.directors.length > 0 ? vp.directors[0].vpAlias.toLowerCase() : '';
+      const actualSignups = signupsByVP.get(vpAlias) || 0;
+      const actualMM = mmByVP.get(vpAlias) || 0;
+
+      const directorsWithSignups = vp.directors.map(d => {
+        // We can't easily break down sign-ups per director without more data,
+        // but we can show the structure with totals at VP level
+        return { ...d };
+      });
+
+      return {
+        ...vp,
+        vpAlias,
+        actualSignups,
+        actualMM,
+        signupDelta: actualSignups - Math.round(vp.expectedSignups),
+        directors: directorsWithSignups,
+      };
+    });
+  }, [allBookings]);
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-white">
@@ -270,6 +318,133 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* Tab toggle */}
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('insights')}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${activeTab === 'insights' ? 'bg-white border border-b-white border-gray-200 -mb-px text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Insights
+          </button>
+          <button
+            onClick={() => setActiveTab('leadership')}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${activeTab === 'leadership' ? 'bg-white border border-b-white border-gray-200 -mb-px text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Leadership Tracker
+          </button>
+        </div>
+
+        {activeTab === 'leadership' && (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Summary by Leader</h2>
+            <p className="text-sm text-gray-500 mb-4">Live sign-up numbers compared against UK headcount targets. Sign-ups are matched by VP alias from bookings.</p>
+
+            {/* Grand total */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <div className="rounded-lg border p-4 bg-blue-50 text-blue-800 border-blue-200">
+                <div className="text-2xl font-bold">{leadershipTracker.reduce((s, v) => s + v.totalHC, 0)}</div>
+                <div className="text-sm font-medium mt-1">Total UK HC</div>
+              </div>
+              <div className="rounded-lg border p-4 bg-emerald-50 text-emerald-800 border-emerald-200">
+                <div className="text-2xl font-bold">{leadershipTracker.reduce((s, v) => s + v.actualSignups, 0)}</div>
+                <div className="text-sm font-medium mt-1">Total Sign-ups</div>
+              </div>
+              <div className="rounded-lg border p-4 bg-violet-50 text-violet-800 border-violet-200">
+                <div className="text-2xl font-bold">{Math.round(leadershipTracker.reduce((s, v) => s + v.expectedSignups, 0))}</div>
+                <div className="text-sm font-medium mt-1">Expected Sign-ups</div>
+              </div>
+              <div className="rounded-lg border p-4 bg-amber-50 text-amber-800 border-amber-200">
+                <div className="text-2xl font-bold">{leadershipTracker.reduce((s, v) => s + v.expectedMM, 0)}</div>
+                <div className="text-sm font-medium mt-1">Expected # of MM</div>
+              </div>
+            </div>
+
+            {/* VP-level table */}
+            <div className="border border-gray-200 rounded-lg overflow-hidden mb-8">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">Leader Name</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">Leader Level</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">VP</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">PF</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">GL/Team</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L3</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L4</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L5</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L6</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L7</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L8</th>
+                      <th className="text-center px-2 py-2 font-medium text-gray-700">L99</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Total UK HC</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Expected # of MM</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Number of MM</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Delta</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Expected # of Sign-ups</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Number of Sign-ups</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Delta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leadershipTracker.map((vp, vpIdx) => (
+                      <>
+                        {/* VP summary row */}
+                        <tr key={`vp-${vpIdx}`} className="bg-gray-100 border-b border-gray-200 font-semibold">
+                          <td className="px-3 py-2">{vp.name}</td>
+                          <td className="px-3 py-2"></td>
+                          <td className="px-3 py-2"></td>
+                          <td className="px-3 py-2"></td>
+                          <td className="px-3 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-3 py-2">{vp.totalHC}</td>
+                          <td className="text-center px-3 py-2">{vp.expectedMM}</td>
+                          <td className="text-center px-3 py-2">{vp.actualMM || '—'}</td>
+                          <td className="text-center px-3 py-2">—</td>
+                          <td className="text-center px-3 py-2">{Math.round(vp.expectedSignups)}</td>
+                          <td className="text-center px-3 py-2 font-bold">{vp.actualSignups}</td>
+                          <td className={`text-center px-3 py-2 font-bold ${vp.signupDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{vp.signupDelta >= 0 ? '+' : ''}{vp.signupDelta}</td>
+                        </tr>
+                        {/* Director rows */}
+                        {vp.directors.map((d, dIdx) => (
+                          <tr key={`d-${vpIdx}-${dIdx}`} className="border-b border-gray-100 last:border-0">
+                            <td className="px-3 py-2 pl-6">{d.name}</td>
+                            <td className="px-3 py-2 text-gray-600">{d.level}</td>
+                            <td className="px-3 py-2 text-gray-600">{d.vpAlias}</td>
+                            <td className="px-3 py-2 text-gray-600">{d.pf}</td>
+                            <td className="px-3 py-2 text-gray-600">{d.glTeam}</td>
+                            <td className="text-center px-2 py-2">{d.l3 || ''}</td>
+                            <td className="text-center px-2 py-2">{d.l4 || ''}</td>
+                            <td className="text-center px-2 py-2">{d.l5 || ''}</td>
+                            <td className="text-center px-2 py-2">{d.l6 || ''}</td>
+                            <td className="text-center px-2 py-2">{d.l7 || ''}</td>
+                            <td className="text-center px-2 py-2">{d.l8 || ''}</td>
+                            <td className="text-center px-2 py-2">{d.l99 || ''}</td>
+                            <td className="text-center px-3 py-2">{d.totalHC}</td>
+                            <td className="text-center px-3 py-2">{d.expectedMM}</td>
+                            <td className="text-center px-3 py-2">—</td>
+                            <td className="text-center px-3 py-2">—</td>
+                            <td className="text-center px-3 py-2">{Math.round(d.expectedSignups)}</td>
+                            <td className="text-center px-3 py-2">—</td>
+                            <td className="text-center px-3 py-2">—</td>
+                          </tr>
+                        ))}
+                      </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'insights' && (<>
         {/* Event filter */}
         {events.length >= 1 && (
           <section className="mb-6">
@@ -560,6 +735,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
             </tbody>
           </table>
         </div>
+        </>)}
       </div>
     </main>
   );
