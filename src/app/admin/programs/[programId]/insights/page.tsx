@@ -63,6 +63,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   const [ltMarketplaces, setLtMarketplaces] = useState<Set<string>>(new Set(['London', 'Manchester']));
   const [ltLevels, setLtLevels] = useState<Set<string>>(new Set(['3', '4', '5', '6', '7', '8']));
   const [expectedOverrides, setExpectedOverrides] = useState<Record<string, number>>({});
+  const [showEditExpected, setShowEditExpected] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -280,9 +281,14 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       }
     }
 
-    // Filter bookings for sign-up count: confirmed + event filter
+    // Filter bookings for sign-up count: confirmed only (exclude cancelled & weekends) + event filter
     const filteredBookings = allBookings.filter(b => {
       if (b.status !== 'confirmed') return false;
+      // Exclude weekend sessions
+      if (b.sessionDate) {
+        const day = new Date(b.sessionDate + 'T00:00:00').getDay();
+        if (day === 0 || day === 6) return false;
+      }
       if (ltEventFilter !== 'all') {
         if (b.eventTitle !== ltEventFilter) return false;
       }
@@ -516,6 +522,18 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                 <span className="text-sm font-bold text-gray-900 w-12 text-right">{tolerance}%</span>
               </div>
               <p className="text-xs text-gray-500">Expected # of sign-ups = Filtered HC × {tolerance}%</p>
+              {/* Edit expected toggle */}
+              <div className="flex items-center gap-2 mt-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showEditExpected}
+                    onChange={(e) => setShowEditExpected(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Edit expected sign-ups manually
+                </label>
+              </div>
             </div>
 
             {/* Grand total */}
@@ -575,21 +593,25 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                           <td className="px-3 py-2"></td>
                           <td className="text-center px-3 py-2">{vp.totalFilteredHC}</td>
                           <td className="text-center px-3 py-2">
-                            <input
-                              type="number"
-                              className="w-16 text-center border border-gray-300 rounded px-1 py-0.5 text-sm bg-white"
-                              placeholder={String(vp.calcExpected)}
-                              value={expectedOverrides[vp.name] !== undefined ? expectedOverrides[vp.name] : ''}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setExpectedOverrides(prev => {
-                                  const next = { ...prev };
-                                  if (val === '') { delete next[vp.name]; } else { next[vp.name] = Number(val); }
-                                  return next;
-                                });
-                              }}
-                            />
+                            {showEditExpected ? (
+                              <input
+                                type="number"
+                                className="w-16 text-center border border-gray-300 rounded px-1 py-0.5 text-sm bg-white"
+                                placeholder={String(vp.calcExpected)}
+                                value={expectedOverrides[vp.name] !== undefined ? expectedOverrides[vp.name] : ''}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setExpectedOverrides(prev => {
+                                    const next = { ...prev };
+                                    if (val === '') { delete next[vp.name]; } else { next[vp.name] = Number(val); }
+                                    return next;
+                                  });
+                                }}
+                              />
+                            ) : (
+                              <span>{vp.expectedSignups}</span>
+                            )}
                           </td>
                           <td className="text-center px-3 py-2 font-bold">{vp.actualSignups}</td>
                           <td className={`text-center px-3 py-2 font-bold ${vp.signupDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{vp.signupDelta >= 0 ? '+' : ''}{vp.signupDelta}</td>
