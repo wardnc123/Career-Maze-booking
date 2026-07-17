@@ -5,6 +5,8 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { CareerMazeEvent, Program } from '@/models/types';
 import leadershipData from '@/data/leadershipData.json';
+import ukEmployees from '@/data/ukEmployees.json';
+import euEmployees from '@/data/euEmployees.json';
 
 interface AdminBooking {
   id: string; name: string; email: string; role: string; pf: string;
@@ -26,6 +28,18 @@ interface LeaderVP {
   directors: LeaderDirector[];
 }
 
+interface UKEmployee {
+  leader: string; leaderLevel: string; team: string; name: string;
+  alias: string; level: number; title: string; manager: string;
+  city: string; hireDate: string; tenure: string;
+}
+
+interface EUEmployee {
+  name: string; alias: string; title: string; level: number; email: string;
+  department: string; country: string; city: string; tenureDays: number;
+  manager: string; director: string; vp: string; glTeam: string;
+}
+
 export default function InsightsPage({ params }: { params: Promise<{ programId: string }> }) {
   const { programId } = use(params);
   const router = useRouter();
@@ -41,6 +55,14 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   const [showAllVPs, setShowAllVPs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'insights' | 'leadership'>('insights');
+
+  // Leadership tracker state
+  const [tolerance, setTolerance] = useState(60);
+  const [expandedVPs, setExpandedVPs] = useState<Set<number>>(new Set());
+  const [ltEventFilter, setLtEventFilter] = useState<string>('all');
+  const [ltMarketplaces, setLtMarketplaces] = useState<Set<string>>(new Set(['London', 'Manchester']));
+  const [ltLevels, setLtLevels] = useState<Set<string>>(new Set(['3', '4', '5', '6', '7', '8']));
+  const [expectedOverrides, setExpectedOverrides] = useState<Record<string, number>>({});
 
   useEffect(() => {
     Promise.all([
@@ -233,7 +255,6 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       const confirmed = evBookings.filter(b => b.status === 'confirmed').length;
       const attended = evBookings.filter(b => b.attended && b.status === 'confirmed').length;
       const attendancePct = confirmed > 0 ? Math.round((attended / confirmed) * 100) : 0;
-      // Utilisation: confirmed / capacity (approximate using maxAttendees if available)
       const utilisationPct = signups > 0 ? Math.round((confirmed / signups) * 100) : 0;
       return { title: ev.title, signups, confirmed, attended, attendancePct, utilisationPct };
     }).filter(row => row.signups > 0);
@@ -242,48 +263,103 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   // Bar chart data
   const maxLevelCount = useMemo(() => Math.max(...levelBreakdown.map(r => r.signups), 1), [levelBreakdown]);
 
-  // Leadership tracker: match bookings by VP alias to the static reference data
-  const [tolerance, setTolerance] = useState(60); // percentage
-  const [expandedVPs, setExpandedVPs] = useState<Set<number>>(new Set());
+  // Available marketplace options derived from data
+  const marketplaceOptions = useMemo(() => {
+    const ukCities = [...new Set((ukEmployees as UKEmployee[]).map(e => e.city))].sort();
+    const euCountries = [...new Set((euEmployees as EUEmployee[]).map(e => e.country))].sort();
+    return { ukCities, euCountries, all: [...ukCities, ...euCountries] };
+  }, []);
 
+  // Leadership tracker: match bookings by VP alias to the static reference data
   const leadershipTracker = useMemo(() => {
-    // Count confirmed bookings per VP alias
-    const signupsByVP = new Map<string, number>();
+    // Build a set of known VP aliases from leadershipData
     const allKnownVPAliases = new Set<string>();
     for (const vp of leadershipData as LeaderVP[]) {
-      if (vp.directors.length > 0) {
-        allKnownVPAliases.add(vp.directors[0].vpAlias.toLowerCase());
+      for (const d of vp.directors) {
+        allKnownVPAliases.add(d.vpAlias.toLowerCase());
       }
     }
 
-    // Track sign-ups that don't belong to any known VP
-    let nonStoresSignups = 0;
-    const nonStoresVPMap = new Map<string, number>(); // VP alias → count for non-stores breakdown
+    // Filter bookings for sign-up count: confirmed + event filter
+    const filteredBookings = allBookings.filter(b => {
+      if (b.status !== 'confirmed') return false;
+      if (ltEventFilter !== 'all') {
+        if (b.eventTitle !== ltEventFilter) return false;
+      }
+      return true;
+    });
 
-    for (const b of allBookings) {
-      if (b.status !== 'confirmed') continue;
+    // Count sign-ups per VP alias
+    const signupsByVPAlias = new Map<string, number>();
+    let nonStoresSignups = 0;
+    const nonStoresVPMap = new Map<string, number>();
+
+    for (const b of filteredBookings) {
       const vp = (b.vpAlias || '').toLowerCase().trim();
       if (!vp) continue;
       if (allKnownVPAliases.has(vp)) {
-        signupsByVP.set(vp, (signupsByVP.get(vp) || 0) + 1);
+        signupsByVPAlias.set(vp, (signupsByVPAlias.get(vp) || 0) + 1);
       } else {
         nonStoresSignups++;
         nonStoresVPMap.set(vp, (nonStoresVPMap.get(vp) || 0) + 1);
       }
     }
 
+    // Filter UK employees by marketplace (city) and level
+    const filteredUK = (ukEmployees as UKEmployee[]).filter(emp => {
+      if (!ltMarketplaces.has(emp.city)) return false;
+      if (!ltLevels.has(String(emp.level))) return false;
+      return true;
+    });
+
+    // Filter EU employees by marketplace (country) and level
+    const filteredEU = (euEmployees as EUEmployee[]).filter(emp => {
+      if (!ltMarketplaces.has(emp.country)) return false;
+      if (!ltLevels.has(String(emp.level))) return false;
+      return true;
+    });
+
+    // Count HC per director from UK employees (leader field matches director name)
+    const hcByDirector = new Map<string, number>();
+    for (const emp of filteredUK) {
+      const dirName = emp.leader;
+      hcByDirector.set(dirName, (hcByDirector.get(dirName) || 0) + 1);
+    }
+    // Also count from EU employees using director field
+    for (const emp of filteredEU) {
+      const dirName = emp.director;
+      // Map EU director alias to director name from leadershipData
+      // EU data uses alias in director field, so we match by checking all directors
+      hcByDirector.set(dirName, (hcByDirector.get(dirName) || 0) + 1);
+    }
+
+    // Build VP rows
     const vpRows = (leadershipData as LeaderVP[]).map(vp => {
       const vpAlias = vp.directors.length > 0 ? vp.directors[0].vpAlias.toLowerCase() : '';
-      const actualSignups = signupsByVP.get(vpAlias) || 0;
-      const expectedSignups = Math.round(vp.totalHC * (tolerance / 100));
-      const signupDelta = actualSignups - expectedSignups;
+      const actualSignups = signupsByVPAlias.get(vpAlias) || 0;
 
-      const directors = vp.directors.map(d => ({
-        ...d,
-        expectedSignups: Math.round(d.totalHC * (tolerance / 100)),
-      }));
+      const directors = vp.directors.map(d => {
+        const dirHC = hcByDirector.get(d.name) || 0;
+        const calcExpected = Math.round(dirHC * (tolerance / 100));
+        const dirExpected = expectedOverrides[d.name] !== undefined ? expectedOverrides[d.name] : calcExpected;
+        return { ...d, filteredHC: dirHC, expectedSignups: dirExpected, calcExpected };
+      });
 
-      return { ...vp, vpAlias, actualSignups, expectedSignups, signupDelta, directors };
+      const totalFilteredHC = directors.reduce((s, d) => s + d.filteredHC, 0);
+      const calcExpected = Math.round(totalFilteredHC * (tolerance / 100));
+      const vpExpected = expectedOverrides[vp.name] !== undefined ? expectedOverrides[vp.name] : calcExpected;
+      const signupDelta = actualSignups - vpExpected;
+
+      return {
+        ...vp,
+        vpAlias,
+        actualSignups,
+        totalFilteredHC,
+        expectedSignups: vpExpected,
+        calcExpected,
+        signupDelta,
+        directors,
+      };
     });
 
     // Sort by actual sign-ups descending
@@ -292,21 +368,10 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
     // Non-stores breakdown
     const nonStoresDirectors = [...nonStoresVPMap.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([alias, count]) => ({
-        name: alias,
-        level: '',
-        vpAlias: alias,
-        pf: '',
-        glTeam: '',
-        l3: 0, l4: 0, l5: 0, l6: 0, l7: 0, l8: 0, l99: 0,
-        totalHC: 0,
-        expectedMM: 0,
-        expectedSignups: 0,
-        actualSignups: count,
-      }));
+      .map(([alias, count]) => ({ alias, count }));
 
     return { vpRows, nonStoresSignups, nonStoresDirectors };
-  }, [allBookings, tolerance]);
+  }, [allBookings, tolerance, ltEventFilter, ltMarketplaces, ltLevels, expectedOverrides]);
 
   if (loading) {
     return (
@@ -369,10 +434,74 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
         {activeTab === 'leadership' && (
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Summary by Leader</h2>
-            <p className="text-sm text-gray-500 mb-4">Live sign-up numbers compared against UK headcount targets. Click a VP row to expand their org. Sign-ups matched by VP alias from bookings.</p>
+            <p className="text-sm text-gray-500 mb-4">Live sign-up numbers compared against headcount targets. Click a VP row to expand their org. Sign-ups matched by VP alias from bookings.</p>
 
-            {/* Tolerance slider */}
-            <div className="mb-6 p-4 rounded-lg border border-gray-200 bg-gray-50">
+            {/* Filters */}
+            <div className="mb-6 p-4 rounded-lg border border-gray-200 bg-gray-50 space-y-4">
+              {/* Event filter */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Event:</label>
+                <select
+                  value={ltEventFilter}
+                  onChange={(e) => setLtEventFilter(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white"
+                >
+                  <option value="all">All Events</option>
+                  {events.map(ev => (
+                    <option key={ev.id} value={ev.title}>{ev.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Marketplace filter */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Marketplace:</label>
+                <div className="flex flex-wrap gap-3 items-center">
+                  {marketplaceOptions.all.map(mp => (
+                    <label key={mp} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={ltMarketplaces.has(mp)}
+                        onChange={() => {
+                          setLtMarketplaces(prev => {
+                            const next = new Set(prev);
+                            if (next.has(mp)) next.delete(mp); else next.add(mp);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {mp}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Level filter */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Level:</label>
+                <div className="flex flex-wrap gap-3 items-center">
+                  {['3', '4', '5', '6', '7', '8'].map(lvl => (
+                    <label key={lvl} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={ltLevels.has(lvl)}
+                        onChange={() => {
+                          setLtLevels(prev => {
+                            const next = new Set(prev);
+                            if (next.has(lvl)) next.delete(lvl); else next.add(lvl);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      L{lvl}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tolerance slider */}
               <div className="flex items-center gap-4">
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Expected sign-up tolerance:</label>
                 <input
@@ -386,14 +515,14 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                 />
                 <span className="text-sm font-bold text-gray-900 w-12 text-right">{tolerance}%</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Expected # of sign-ups = Total UK HC × {tolerance}%</p>
+              <p className="text-xs text-gray-500">Expected # of sign-ups = Filtered HC × {tolerance}%</p>
             </div>
 
             {/* Grand total */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               <div className="rounded-lg border p-4 bg-blue-50 text-blue-800 border-blue-200">
-                <div className="text-2xl font-bold">{leadershipTracker.vpRows.reduce((s, v) => s + v.totalHC, 0)}</div>
-                <div className="text-sm font-medium mt-1">Total UK HC</div>
+                <div className="text-2xl font-bold">{leadershipTracker.vpRows.reduce((s, v) => s + v.totalFilteredHC, 0)}</div>
+                <div className="text-sm font-medium mt-1">Total HC (filtered)</div>
               </div>
               <div className="rounded-lg border p-4 bg-emerald-50 text-emerald-800 border-emerald-200">
                 <div className="text-2xl font-bold">{leadershipTracker.vpRows.reduce((s, v) => s + v.actualSignups, 0) + leadershipTracker.nonStoresSignups}</div>
@@ -419,14 +548,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Leader Level</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">PF</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">GL/Team</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L3</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L4</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L5</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L6</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L7</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L8</th>
-                      <th className="text-center px-2 py-2 font-medium text-gray-700">L99</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Total UK HC</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Total HC</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Expected Sign-ups</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Number of Sign-ups</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Delta</th>
@@ -448,21 +570,31 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                             <span className="mr-2">{expandedVPs.has(vpIdx) ? '▼' : '▶'}</span>
                             {vp.name}
                           </td>
+                          <td className="px-3 py-2 text-gray-600">VP</td>
                           <td className="px-3 py-2"></td>
                           <td className="px-3 py-2"></td>
-                          <td className="px-3 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-3 py-2">{vp.totalHC}</td>
-                          <td className="text-center px-3 py-2">{vp.expectedSignups}</td>
+                          <td className="text-center px-3 py-2">{vp.totalFilteredHC}</td>
+                          <td className="text-center px-3 py-2">
+                            <input
+                              type="number"
+                              className="w-16 text-center border border-gray-300 rounded px-1 py-0.5 text-sm bg-white"
+                              placeholder={String(vp.calcExpected)}
+                              value={expectedOverrides[vp.name] !== undefined ? expectedOverrides[vp.name] : ''}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExpectedOverrides(prev => {
+                                  const next = { ...prev };
+                                  if (val === '') { delete next[vp.name]; } else { next[vp.name] = Number(val); }
+                                  return next;
+                                });
+                              }}
+                            />
+                          </td>
                           <td className="text-center px-3 py-2 font-bold">{vp.actualSignups}</td>
                           <td className={`text-center px-3 py-2 font-bold ${vp.signupDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{vp.signupDelta >= 0 ? '+' : ''}{vp.signupDelta}</td>
                         </tr>
+
                         {/* Director rows - shown when expanded */}
                         {expandedVPs.has(vpIdx) && vp.directors.map((d, dIdx) => (
                           <tr key={`d-${vpIdx}-${dIdx}`} className="border-b border-gray-100 last:border-0 bg-white">
@@ -470,14 +602,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                             <td className="px-3 py-2 text-gray-600">{d.level}</td>
                             <td className="px-3 py-2 text-gray-600">{d.pf}</td>
                             <td className="px-3 py-2 text-gray-600">{d.glTeam}</td>
-                            <td className="text-center px-2 py-2">{d.l3 || ''}</td>
-                            <td className="text-center px-2 py-2">{d.l4 || ''}</td>
-                            <td className="text-center px-2 py-2">{d.l5 || ''}</td>
-                            <td className="text-center px-2 py-2">{d.l6 || ''}</td>
-                            <td className="text-center px-2 py-2">{d.l7 || ''}</td>
-                            <td className="text-center px-2 py-2">{d.l8 || ''}</td>
-                            <td className="text-center px-2 py-2">{d.l99 || ''}</td>
-                            <td className="text-center px-3 py-2">{d.totalHC}</td>
+                            <td className="text-center px-3 py-2">{d.filteredHC}</td>
                             <td className="text-center px-3 py-2">{d.expectedSignups}</td>
                             <td className="text-center px-3 py-2">—</td>
                             <td className="text-center px-3 py-2">—</td>
@@ -485,6 +610,7 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                         ))}
                       </React.Fragment>
                     ))}
+
                     {/* Non-Stores row */}
                     {leadershipTracker.nonStoresSignups > 0 && (
                       <React.Fragment>
@@ -504,13 +630,6 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                           <td className="px-3 py-2"></td>
                           <td className="px-3 py-2"></td>
                           <td className="px-3 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
-                          <td className="text-center px-2 py-2"></td>
                           <td className="text-center px-3 py-2">—</td>
                           <td className="text-center px-3 py-2">—</td>
                           <td className="text-center px-3 py-2 font-bold">{leadershipTracker.nonStoresSignups}</td>
@@ -518,20 +637,13 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                         </tr>
                         {expandedVPs.has(999) && leadershipTracker.nonStoresDirectors.map((d, dIdx) => (
                           <tr key={`ns-${dIdx}`} className="border-b border-gray-100 last:border-0 bg-white">
-                            <td className="px-3 py-2 pl-8">{d.name}</td>
-                            <td className="px-3 py-2 text-gray-500 italic">VP alias from form</td>
+                            <td className="px-3 py-2 pl-8">{d.alias}</td>
+                            <td className="px-3 py-2 text-gray-500 italic">Unrecognized VP alias</td>
                             <td className="px-3 py-2"></td>
                             <td className="px-3 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
-                            <td className="text-center px-2 py-2"></td>
                             <td className="text-center px-3 py-2">—</td>
                             <td className="text-center px-3 py-2">—</td>
-                            <td className="text-center px-3 py-2">{d.actualSignups}</td>
+                            <td className="text-center px-3 py-2">{d.count}</td>
                             <td className="text-center px-3 py-2">—</td>
                           </tr>
                         ))}
