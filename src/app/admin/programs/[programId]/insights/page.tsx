@@ -284,9 +284,10 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
     // Filter bookings for sign-up count: confirmed only (exclude cancelled & weekends) + event filter
     const filteredBookings = allBookings.filter(b => {
       if (b.status !== 'confirmed') return false;
-      // Exclude weekend sessions
+      // Exclude weekend sessions (matching admin page logic)
       if (b.sessionDate) {
-        const day = new Date(b.sessionDate + 'T00:00:00').getDay();
+        const d = new Date(b.sessionDate + 'T00:00:00Z');
+        const day = d.getUTCDay();
         if (day === 0 || day === 6) return false;
       }
       if (ltEventFilter !== 'all') {
@@ -295,12 +296,16 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       return true;
     });
 
-    // Count sign-ups per VP alias
+    // Count sign-ups per VP alias (unique by email to avoid double-counting multi-slot bookings)
     const signupsByVPAlias = new Map<string, number>();
     let nonStoresSignups = 0;
     const nonStoresVPMap = new Map<string, number>();
+    const countedEmails = new Set<string>();
 
     for (const b of filteredBookings) {
+      const email = (b.email || '').toLowerCase().trim();
+      if (countedEmails.has(email)) continue; // Skip duplicate bookings by same person
+      countedEmails.add(email);
       const vp = (b.vpAlias || '').toLowerCase().trim();
       if (!vp) continue;
       if (allKnownVPAliases.has(vp)) {
