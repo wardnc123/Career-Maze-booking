@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, use } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { CareerMazeEvent, Program } from '@/models/types';
 import leadershipData from '@/data/leadershipData.json';
@@ -242,39 +243,70 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
   const maxLevelCount = useMemo(() => Math.max(...levelBreakdown.map(r => r.signups), 1), [levelBreakdown]);
 
   // Leadership tracker: match bookings by VP alias to the static reference data
+  const [tolerance, setTolerance] = useState(60); // percentage
+  const [expandedVPs, setExpandedVPs] = useState<Set<number>>(new Set());
+
   const leadershipTracker = useMemo(() => {
-    // Count confirmed bookings per VP alias (Career Maze sign-ups)
+    // Count confirmed bookings per VP alias
     const signupsByVP = new Map<string, number>();
-    const mmByVP = new Map<string, number>();
+    const allKnownVPAliases = new Set<string>();
+    for (const vp of leadershipData as LeaderVP[]) {
+      if (vp.directors.length > 0) {
+        allKnownVPAliases.add(vp.directors[0].vpAlias.toLowerCase());
+      }
+    }
+
+    // Track sign-ups that don't belong to any known VP
+    let nonStoresSignups = 0;
+    const nonStoresVPMap = new Map<string, number>(); // VP alias → count for non-stores breakdown
+
     for (const b of allBookings) {
       if (b.status !== 'confirmed') continue;
       const vp = (b.vpAlias || '').toLowerCase().trim();
       if (!vp) continue;
-      signupsByVP.set(vp, (signupsByVP.get(vp) || 0) + 1);
+      if (allKnownVPAliases.has(vp)) {
+        signupsByVP.set(vp, (signupsByVP.get(vp) || 0) + 1);
+      } else {
+        nonStoresSignups++;
+        nonStoresVPMap.set(vp, (nonStoresVPMap.get(vp) || 0) + 1);
+      }
     }
 
-    return (leadershipData as LeaderVP[]).map(vp => {
-      // Find VP alias from their directors
+    const vpRows = (leadershipData as LeaderVP[]).map(vp => {
       const vpAlias = vp.directors.length > 0 ? vp.directors[0].vpAlias.toLowerCase() : '';
       const actualSignups = signupsByVP.get(vpAlias) || 0;
-      const actualMM = mmByVP.get(vpAlias) || 0;
+      const expectedSignups = Math.round(vp.totalHC * (tolerance / 100));
+      const signupDelta = actualSignups - expectedSignups;
 
-      const directorsWithSignups = vp.directors.map(d => {
-        // We can't easily break down sign-ups per director without more data,
-        // but we can show the structure with totals at VP level
-        return { ...d };
-      });
+      const directors = vp.directors.map(d => ({
+        ...d,
+        expectedSignups: Math.round(d.totalHC * (tolerance / 100)),
+      }));
 
-      return {
-        ...vp,
-        vpAlias,
-        actualSignups,
-        actualMM,
-        signupDelta: actualSignups - Math.round(vp.expectedSignups),
-        directors: directorsWithSignups,
-      };
+      return { ...vp, vpAlias, actualSignups, expectedSignups, signupDelta, directors };
     });
-  }, [allBookings]);
+
+    // Sort by actual sign-ups descending
+    vpRows.sort((a, b) => b.actualSignups - a.actualSignups);
+
+    // Non-stores breakdown
+    const nonStoresDirectors = [...nonStoresVPMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([alias, count]) => ({
+        name: alias,
+        level: '',
+        vpAlias: alias,
+        pf: '',
+        glTeam: '',
+        l3: 0, l4: 0, l5: 0, l6: 0, l7: 0, l8: 0, l99: 0,
+        totalHC: 0,
+        expectedMM: 0,
+        expectedSignups: 0,
+        actualSignups: count,
+      }));
+
+    return { vpRows, nonStoresSignups, nonStoresDirectors };
+  }, [allBookings, tolerance]);
 
   if (loading) {
     return (
@@ -337,25 +369,43 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
         {activeTab === 'leadership' && (
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Summary by Leader</h2>
-            <p className="text-sm text-gray-500 mb-4">Live sign-up numbers compared against UK headcount targets. Sign-ups are matched by VP alias from bookings.</p>
+            <p className="text-sm text-gray-500 mb-4">Live sign-up numbers compared against UK headcount targets. Click a VP row to expand their org. Sign-ups matched by VP alias from bookings.</p>
+
+            {/* Tolerance slider */}
+            <div className="mb-6 p-4 rounded-lg border border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Expected sign-up tolerance:</label>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={tolerance}
+                  onChange={(e) => setTolerance(Number(e.target.value))}
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <span className="text-sm font-bold text-gray-900 w-12 text-right">{tolerance}%</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Expected # of sign-ups = Total UK HC × {tolerance}%</p>
+            </div>
 
             {/* Grand total */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               <div className="rounded-lg border p-4 bg-blue-50 text-blue-800 border-blue-200">
-                <div className="text-2xl font-bold">{leadershipTracker.reduce((s, v) => s + v.totalHC, 0)}</div>
+                <div className="text-2xl font-bold">{leadershipTracker.vpRows.reduce((s, v) => s + v.totalHC, 0)}</div>
                 <div className="text-sm font-medium mt-1">Total UK HC</div>
               </div>
               <div className="rounded-lg border p-4 bg-emerald-50 text-emerald-800 border-emerald-200">
-                <div className="text-2xl font-bold">{leadershipTracker.reduce((s, v) => s + v.actualSignups, 0)}</div>
+                <div className="text-2xl font-bold">{leadershipTracker.vpRows.reduce((s, v) => s + v.actualSignups, 0) + leadershipTracker.nonStoresSignups}</div>
                 <div className="text-sm font-medium mt-1">Total Sign-ups</div>
               </div>
               <div className="rounded-lg border p-4 bg-violet-50 text-violet-800 border-violet-200">
-                <div className="text-2xl font-bold">{Math.round(leadershipTracker.reduce((s, v) => s + v.expectedSignups, 0))}</div>
-                <div className="text-sm font-medium mt-1">Expected Sign-ups</div>
+                <div className="text-2xl font-bold">{leadershipTracker.vpRows.reduce((s, v) => s + v.expectedSignups, 0)}</div>
+                <div className="text-sm font-medium mt-1">Expected Sign-ups ({tolerance}%)</div>
               </div>
               <div className="rounded-lg border p-4 bg-amber-50 text-amber-800 border-amber-200">
-                <div className="text-2xl font-bold">{leadershipTracker.reduce((s, v) => s + v.expectedMM, 0)}</div>
-                <div className="text-sm font-medium mt-1">Expected # of MM</div>
+                <div className="text-2xl font-bold">{leadershipTracker.nonStoresSignups}</div>
+                <div className="text-sm font-medium mt-1">Non-Stores Sign-ups</div>
               </div>
             </div>
 
@@ -367,7 +417,6 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                     <tr>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Leader Name</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Leader Level</th>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">VP</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">PF</th>
                       <th className="text-left px-3 py-2 font-medium text-gray-700">GL/Team</th>
                       <th className="text-center px-2 py-2 font-medium text-gray-700">L3</th>
@@ -378,21 +427,27 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                       <th className="text-center px-2 py-2 font-medium text-gray-700">L8</th>
                       <th className="text-center px-2 py-2 font-medium text-gray-700">L99</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Total UK HC</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Expected # of MM</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Number of MM</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Delta</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Expected # of Sign-ups</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-700">Expected Sign-ups</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Number of Sign-ups</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Delta</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {leadershipTracker.map((vp, vpIdx) => (
-                      <>
-                        {/* VP summary row */}
-                        <tr key={`vp-${vpIdx}`} className="bg-gray-100 border-b border-gray-200 font-semibold">
-                          <td className="px-3 py-2">{vp.name}</td>
-                          <td className="px-3 py-2"></td>
+                    {leadershipTracker.vpRows.map((vp, vpIdx) => (
+                      <React.Fragment key={`vp-${vpIdx}`}>
+                        {/* VP summary row - clickable */}
+                        <tr
+                          className="bg-gray-100 border-b border-gray-200 font-semibold cursor-pointer hover:bg-gray-200 transition-colors"
+                          onClick={() => setExpandedVPs(prev => {
+                            const next = new Set(prev);
+                            if (next.has(vpIdx)) next.delete(vpIdx); else next.add(vpIdx);
+                            return next;
+                          })}
+                        >
+                          <td className="px-3 py-2">
+                            <span className="mr-2">{expandedVPs.has(vpIdx) ? '▼' : '▶'}</span>
+                            {vp.name}
+                          </td>
                           <td className="px-3 py-2"></td>
                           <td className="px-3 py-2"></td>
                           <td className="px-3 py-2"></td>
@@ -404,19 +459,15 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                           <td className="text-center px-2 py-2"></td>
                           <td className="text-center px-2 py-2"></td>
                           <td className="text-center px-3 py-2">{vp.totalHC}</td>
-                          <td className="text-center px-3 py-2">{vp.expectedMM}</td>
-                          <td className="text-center px-3 py-2">{vp.actualMM || '—'}</td>
-                          <td className="text-center px-3 py-2">—</td>
-                          <td className="text-center px-3 py-2">{Math.round(vp.expectedSignups)}</td>
+                          <td className="text-center px-3 py-2">{vp.expectedSignups}</td>
                           <td className="text-center px-3 py-2 font-bold">{vp.actualSignups}</td>
                           <td className={`text-center px-3 py-2 font-bold ${vp.signupDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{vp.signupDelta >= 0 ? '+' : ''}{vp.signupDelta}</td>
                         </tr>
-                        {/* Director rows */}
-                        {vp.directors.map((d, dIdx) => (
-                          <tr key={`d-${vpIdx}-${dIdx}`} className="border-b border-gray-100 last:border-0">
-                            <td className="px-3 py-2 pl-6">{d.name}</td>
+                        {/* Director rows - shown when expanded */}
+                        {expandedVPs.has(vpIdx) && vp.directors.map((d, dIdx) => (
+                          <tr key={`d-${vpIdx}-${dIdx}`} className="border-b border-gray-100 last:border-0 bg-white">
+                            <td className="px-3 py-2 pl-8">{d.name}</td>
                             <td className="px-3 py-2 text-gray-600">{d.level}</td>
-                            <td className="px-3 py-2 text-gray-600">{d.vpAlias}</td>
                             <td className="px-3 py-2 text-gray-600">{d.pf}</td>
                             <td className="px-3 py-2 text-gray-600">{d.glTeam}</td>
                             <td className="text-center px-2 py-2">{d.l3 || ''}</td>
@@ -427,16 +478,65 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                             <td className="text-center px-2 py-2">{d.l8 || ''}</td>
                             <td className="text-center px-2 py-2">{d.l99 || ''}</td>
                             <td className="text-center px-3 py-2">{d.totalHC}</td>
-                            <td className="text-center px-3 py-2">{d.expectedMM}</td>
-                            <td className="text-center px-3 py-2">—</td>
-                            <td className="text-center px-3 py-2">—</td>
-                            <td className="text-center px-3 py-2">{Math.round(d.expectedSignups)}</td>
+                            <td className="text-center px-3 py-2">{d.expectedSignups}</td>
                             <td className="text-center px-3 py-2">—</td>
                             <td className="text-center px-3 py-2">—</td>
                           </tr>
                         ))}
-                      </>
+                      </React.Fragment>
                     ))}
+                    {/* Non-Stores row */}
+                    {leadershipTracker.nonStoresSignups > 0 && (
+                      <React.Fragment>
+                        <tr
+                          className="bg-orange-50 border-b border-gray-200 font-semibold cursor-pointer hover:bg-orange-100 transition-colors"
+                          onClick={() => setExpandedVPs(prev => {
+                            const next = new Set(prev);
+                            const nsIdx = 999;
+                            if (next.has(nsIdx)) next.delete(nsIdx); else next.add(nsIdx);
+                            return next;
+                          })}
+                        >
+                          <td className="px-3 py-2">
+                            <span className="mr-2">{expandedVPs.has(999) ? '▼' : '▶'}</span>
+                            Non-Stores
+                          </td>
+                          <td className="px-3 py-2"></td>
+                          <td className="px-3 py-2"></td>
+                          <td className="px-3 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-2 py-2"></td>
+                          <td className="text-center px-3 py-2">—</td>
+                          <td className="text-center px-3 py-2">—</td>
+                          <td className="text-center px-3 py-2 font-bold">{leadershipTracker.nonStoresSignups}</td>
+                          <td className="text-center px-3 py-2">—</td>
+                        </tr>
+                        {expandedVPs.has(999) && leadershipTracker.nonStoresDirectors.map((d, dIdx) => (
+                          <tr key={`ns-${dIdx}`} className="border-b border-gray-100 last:border-0 bg-white">
+                            <td className="px-3 py-2 pl-8">{d.name}</td>
+                            <td className="px-3 py-2 text-gray-500 italic">VP alias from form</td>
+                            <td className="px-3 py-2"></td>
+                            <td className="px-3 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-2 py-2"></td>
+                            <td className="text-center px-3 py-2">—</td>
+                            <td className="text-center px-3 py-2">—</td>
+                            <td className="text-center px-3 py-2">{d.actualSignups}</td>
+                            <td className="text-center px-3 py-2">—</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    )}
                   </tbody>
                 </table>
               </div>
