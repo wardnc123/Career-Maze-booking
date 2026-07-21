@@ -271,20 +271,35 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
     return { ukCities, euCountries, all: [...ukCities, ...euCountries] };
   }, []);
 
-  // Leadership tracker: match bookings by VP alias to the static reference data
+  // Leadership tracker: match bookings to directors via employee alias lookup
   const leadershipTracker = useMemo(() => {
-    // Build a set of known VP aliases from leadershipData
+    // Build alias → director name lookup from UK employees
+    const aliasToDirName = new Map<string, string>();
+    for (const emp of ukEmployees as UKEmployee[]) {
+      if (emp.alias) {
+        aliasToDirName.set(emp.alias.toLowerCase(), emp.leader);
+      }
+    }
+    // Also from EU employees (alias → director)
+    for (const emp of euEmployees as EUEmployee[]) {
+      if (emp.alias) {
+        aliasToDirName.set(emp.alias.toLowerCase(), emp.director);
+      }
+    }
+
+    // Build director name → VP alias lookup from leadershipData
+    const dirNameToVPAlias = new Map<string, string>();
     const allKnownVPAliases = new Set<string>();
     for (const vp of leadershipData as LeaderVP[]) {
       for (const d of vp.directors) {
         allKnownVPAliases.add(d.vpAlias.toLowerCase());
+        dirNameToVPAlias.set(d.name, d.vpAlias.toLowerCase());
       }
     }
 
     // Filter bookings for sign-up count: confirmed only (exclude cancelled & weekends) + event filter
     const filteredBookings = allBookings.filter(b => {
       if (b.status !== 'confirmed') return false;
-      // Exclude weekend sessions (matching admin page logic)
       if (b.sessionDate) {
         const d = new Date(b.sessionDate + 'T00:00:00Z');
         const day = d.getUTCDay();
@@ -296,7 +311,8 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       return true;
     });
 
-    // Count sign-ups per VP alias (unique by email to avoid double-counting multi-slot bookings)
+    // Count sign-ups per director (unique by email to avoid double-counting multi-slot bookings)
+    const signupsByDirector = new Map<string, number>();
     const signupsByVPAlias = new Map<string, number>();
     let nonStoresSignups = 0;
     const nonStoresVPMap = new Map<string, number>();
@@ -304,15 +320,35 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
 
     for (const b of filteredBookings) {
       const email = (b.email || '').toLowerCase().trim();
-      if (countedEmails.has(email)) continue; // Skip duplicate bookings by same person
+      if (countedEmails.has(email)) continue; // Unique person only
       countedEmails.add(email);
-      const vp = (b.vpAlias || '').toLowerCase().trim();
-      if (!vp) continue;
-      if (allKnownVPAliases.has(vp)) {
-        signupsByVPAlias.set(vp, (signupsByVPAlias.get(vp) || 0) + 1);
+
+      // Try to find the person's director from the employee file using their alias
+      const bookingAlias = (b.alias || '').toLowerCase().trim() || email.split('@')[0];
+      const dirName = aliasToDirName.get(bookingAlias);
+
+      if (dirName) {
+        // Found in employee file — count at director level
+        signupsByDirector.set(dirName, (signupsByDirector.get(dirName) || 0) + 1);
+        // Also count at VP level
+        const vpAlias = dirNameToVPAlias.get(dirName);
+        if (vpAlias) {
+          signupsByVPAlias.set(vpAlias, (signupsByVPAlias.get(vpAlias) || 0) + 1);
+        } else {
+          // Director exists in employee file but not in leadershipData
+          nonStoresSignups++;
+          nonStoresVPMap.set(bookingAlias, (nonStoresVPMap.get(bookingAlias) || 0) + 1);
+        }
       } else {
-        nonStoresSignups++;
-        nonStoresVPMap.set(vp, (nonStoresVPMap.get(vp) || 0) + 1);
+        // Not found in employee file — fall back to VP alias from booking form
+        const vp = (b.vpAlias || '').toLowerCase().trim();
+        if (!vp) { nonStoresSignups++; nonStoresVPMap.set('(no VP)', (nonStoresVPMap.get('(no VP)') || 0) + 1); continue; }
+        if (allKnownVPAliases.has(vp)) {
+          signupsByVPAlias.set(vp, (signupsByVPAlias.get(vp) || 0) + 1);
+        } else {
+          nonStoresSignups++;
+          nonStoresVPMap.set(vp, (nonStoresVPMap.get(vp) || 0) + 1);
+        }
       }
     }
 
@@ -333,15 +369,10 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
     // Count HC per director from UK employees (leader field matches director name)
     const hcByDirector = new Map<string, number>();
     for (const emp of filteredUK) {
-      const dirName = emp.leader;
-      hcByDirector.set(dirName, (hcByDirector.get(dirName) || 0) + 1);
+      hcByDirector.set(emp.leader, (hcByDirector.get(emp.leader) || 0) + 1);
     }
-    // Also count from EU employees using director field
     for (const emp of filteredEU) {
-      const dirName = emp.director;
-      // Map EU director alias to director name from leadershipData
-      // EU data uses alias in director field, so we match by checking all directors
-      hcByDirector.set(dirName, (hcByDirector.get(dirName) || 0) + 1);
+      hcByDirector.set(emp.director, (hcByDirector.get(emp.director) || 0) + 1);
     }
 
     // Build VP rows
@@ -351,9 +382,10 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
 
       const directors = vp.directors.map(d => {
         const dirHC = hcByDirector.get(d.name) || 0;
+        const dirSignups = signupsByDirector.get(d.name) || 0;
         const calcExpected = Math.round(dirHC * (tolerance / 100));
         const dirExpected = expectedOverrides[d.name] !== undefined ? expectedOverrides[d.name] : calcExpected;
-        return { ...d, filteredHC: dirHC, expectedSignups: dirExpected, calcExpected };
+        return { ...d, filteredHC: dirHC, expectedSignups: dirExpected, calcExpected, actualSignups: dirSignups };
       });
 
       const totalFilteredHC = directors.reduce((s, d) => s + d.filteredHC, 0);
@@ -631,8 +663,10 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
                             <td className="px-3 py-2 text-gray-600">{d.glTeam}</td>
                             <td className="text-center px-3 py-2">{d.filteredHC}</td>
                             <td className="text-center px-3 py-2">{d.expectedSignups}</td>
-                            <td className="text-center px-3 py-2">—</td>
-                            <td className="text-center px-3 py-2">—</td>
+                            <td className="text-center px-3 py-2">{d.actualSignups || '—'}</td>
+                            <td className={`text-center px-3 py-2 ${d.actualSignups > 0 ? (d.actualSignups - d.expectedSignups >= 0 ? 'text-emerald-700' : 'text-red-600') : ''}`}>
+                              {d.actualSignups > 0 ? `${d.actualSignups - d.expectedSignups >= 0 ? '+' : ''}${d.actualSignups - d.expectedSignups}` : '—'}
+                            </td>
                           </tr>
                         ))}
                       </React.Fragment>

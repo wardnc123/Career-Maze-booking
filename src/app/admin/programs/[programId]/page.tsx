@@ -329,6 +329,13 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
           <div className="mb-6">
             {(() => {
               const filtered = allBookings.filter(b => (selectedEventIds.size === 0 || events.some(ev => selectedEventIds.has(ev.id) && ev.title === b.eventTitle))).filter(b => !hideCancelled || b.status !== 'cancelled');
+              // Detect duplicate emails (same person, multiple bookings)
+              const emailCounts = new Map<string, number>();
+              for (const b of filtered.filter(fb => fb.status === 'confirmed')) {
+                const em = b.email.toLowerCase();
+                emailCounts.set(em, (emailCounts.get(em) || 0) + 1);
+              }
+              const duplicateEmails = new Set([...emailCounts.entries()].filter(([, c]) => c > 1).map(([e]) => e));
               const dates = [...new Set(filtered.map(b => b.sessionDate))].sort();
               return dates.map(date => {
                 const dateBookings = filtered.filter(b => b.sessionDate === date);
@@ -353,8 +360,11 @@ export default function ProgramEventManagementPage({ params }: { params: Promise
                         </thead>
                         <tbody>
                           {dateBookings.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(b => (
-                            <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.status === 'cancelled' ? 'opacity-50' : b.isWaitlisted ? 'bg-amber-50' : b.promotedFromWaitlist ? 'bg-purple-50' : ''}`}>
-                              <td className={`px-3 py-2 ${b.status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>{b.name}</td>
+                            <tr key={b.id} className={`border-b border-gray-100 last:border-0 ${b.status === 'cancelled' ? 'opacity-50' : b.isWaitlisted ? 'bg-amber-50' : b.promotedFromWaitlist ? 'bg-purple-50' : duplicateEmails.has(b.email.toLowerCase()) && b.status === 'confirmed' ? 'bg-yellow-50' : ''}`}>
+                              <td className={`px-3 py-2 ${b.status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>
+                                {b.name}
+                                {duplicateEmails.has(b.email.toLowerCase()) && b.status === 'confirmed' && <span className="ml-1 px-1.5 py-0.5 bg-yellow-200 text-yellow-800 text-xs rounded font-medium">duplicate</span>}
+                              </td>
                               <td className="px-3 py-2 text-blue-600"><a href={`mailto:${b.email}`}>{b.email}</a></td>
                               <td className="px-3 py-2 text-gray-600">{b.vpAlias || '—'}</td>
                               <td className="px-3 py-2 text-gray-600">{b.level || '—'}</td>
