@@ -271,33 +271,66 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
     return { ukCities, euCountries, all: [...ukCities, ...euCountries] };
   }, []);
 
-  // Leadership tracker: match bookings to directors via employee alias lookup
+  // Leadership tracker: match sign-ups to directors using EU employee file chain of command
   const leadershipTracker = useMemo(() => {
-    // Build alias → director name lookup from UK employees
-    const aliasToDirName = new Map<string, string>();
-    for (const emp of ukEmployees as UKEmployee[]) {
-      if (emp.alias) {
-        aliasToDirName.set(emp.alias.toLowerCase(), emp.leader);
-      }
-    }
-    // Also from EU employees (alias → director)
+    // Build alias → director alias and alias → VP alias from EU employee file
+    const aliasToDirAlias = new Map<string, string>();
+    const aliasToVPAlias = new Map<string, string>();
     for (const emp of euEmployees as EUEmployee[]) {
       if (emp.alias) {
-        aliasToDirName.set(emp.alias.toLowerCase(), emp.director);
+        aliasToDirAlias.set(emp.alias.toLowerCase(), (emp.director || '').toLowerCase());
+        aliasToVPAlias.set(emp.alias.toLowerCase(), (emp.vp || '').toLowerCase());
+      }
+    }
+    // Also from UK employees: alias → leader name → need to map leader name to director alias
+    // UK file has leader as full name; build name→alias map from EU file
+    const fullNameToAlias = new Map<string, string>();
+    for (const emp of euEmployees as EUEmployee[]) {
+      if (emp.alias && emp.name) {
+        fullNameToAlias.set(emp.name.toLowerCase(), emp.alias.toLowerCase());
+      }
+    }
+    for (const emp of ukEmployees as UKEmployee[]) {
+      if (emp.alias) {
+        // Map UK employee alias to their director alias using leader name
+        const leaderAlias = fullNameToAlias.get(emp.leader?.toLowerCase() || '');
+        if (leaderAlias) {
+          aliasToDirAlias.set(emp.alias.toLowerCase(), leaderAlias);
+          // Get VP alias from that director
+          const vpAlias = aliasToVPAlias.get(leaderAlias);
+          if (vpAlias) aliasToVPAlias.set(emp.alias.toLowerCase(), vpAlias);
+        }
       }
     }
 
-    // Build director name → VP alias lookup from leadershipData
-    const dirNameToVPAlias = new Map<string, string>();
-    const allKnownVPAliases = new Set<string>();
+    // Build director alias → full name map (from EU file: find whose own alias equals the director alias)
+    const dirAliasToName = new Map<string, string>();
+    for (const emp of euEmployees as EUEmployee[]) {
+      if (emp.alias) {
+        dirAliasToName.set(emp.alias.toLowerCase(), emp.name);
+      }
+    }
+
+    // Build a set of known VP aliases from leadershipData
+    const knownVPAliases = new Set<string>();
+    const vpAliasTOVPName = new Map<string, string>();
+    for (const vp of leadershipData as LeaderVP[]) {
+      if (vp.directors.length > 0) {
+        const vpA = vp.directors[0].vpAlias.toLowerCase();
+        knownVPAliases.add(vpA);
+        vpAliasTOVPName.set(vpA, vp.name);
+      }
+    }
+
+    // Build director name → leadershipData director object for matching
+    const dirNameSet = new Set<string>();
     for (const vp of leadershipData as LeaderVP[]) {
       for (const d of vp.directors) {
-        allKnownVPAliases.add(d.vpAlias.toLowerCase());
-        dirNameToVPAlias.set(d.name, d.vpAlias.toLowerCase());
+        dirNameSet.add(d.name);
       }
     }
 
-    // Filter bookings for sign-up count: confirmed only (exclude cancelled & weekends) + event filter
+    // Filter bookings: confirmed, weekday, event filter
     const filteredBookings = allBookings.filter(b => {
       if (b.status !== 'confirmed') return false;
       if (b.sessionDate) {
@@ -311,82 +344,89 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       return true;
     });
 
-    // Count sign-ups per director (unique by email to avoid double-counting multi-slot bookings)
-    const signupsByDirector = new Map<string, number>();
-    const signupsByVPAlias = new Map<string, number>();
+    // Count sign-ups per director NAME (unique by email)
+    const signupsByDirName = new Map<string, number>();
     let nonStoresSignups = 0;
     const nonStoresVPMap = new Map<string, number>();
     const countedEmails = new Set<string>();
 
     for (const b of filteredBookings) {
       const email = (b.email || '').toLowerCase().trim();
-      if (countedEmails.has(email)) continue; // Unique person only
+      if (countedEmails.has(email)) continue;
       countedEmails.add(email);
 
-      // Try to find the person's director from the employee file using their alias
+      // Get the booking alias (from form field or email prefix)
       const bookingAlias = (b.alias || '').toLowerCase().trim() || email.split('@')[0];
-      const dirName = aliasToDirName.get(bookingAlias);
 
-      if (dirName) {
-        // Found in employee file — count at director level
-        signupsByDirector.set(dirName, (signupsByDirector.get(dirName) || 0) + 1);
-        // Also count at VP level
-        const vpAlias = dirNameToVPAlias.get(dirName);
-        if (vpAlias) {
-          signupsByVPAlias.set(vpAlias, (signupsByVPAlias.get(vpAlias) || 0) + 1);
+      // Look up their director alias from the employee file
+      const dirAlias = aliasToDirAlias.get(bookingAlias);
+      if (dirAlias) {
+        // Get the director's full name
+        const dirFullName = dirAliasToName.get(dirAlias) || '';
+        if (dirNameSet.has(dirFullName)) {
+          // Known director in leadershipData
+          signupsByDirName.set(dirFullName, (signupsByDirName.get(dirFullName) || 0) + 1);
         } else {
-          // Director exists in employee file but not in leadershipData
-          nonStoresSignups++;
-          nonStoresVPMap.set(bookingAlias, (nonStoresVPMap.get(bookingAlias) || 0) + 1);
+          // Director not in leadershipData — check VP
+          const vpAlias = aliasToVPAlias.get(bookingAlias) || '';
+          if (knownVPAliases.has(vpAlias)) {
+            // Put under VP name as unallocated
+            const vpName = vpAliasTOVPName.get(vpAlias) || vpAlias;
+            signupsByDirName.set('__VP__' + vpName, (signupsByDirName.get('__VP__' + vpName) || 0) + 1);
+          } else {
+            nonStoresSignups++;
+            nonStoresVPMap.set(bookingAlias, (nonStoresVPMap.get(bookingAlias) || 0) + 1);
+          }
         }
       } else {
-        // Not found in employee file — fall back to VP alias from booking form
-        const vp = (b.vpAlias || '').toLowerCase().trim();
-        if (!vp) { nonStoresSignups++; nonStoresVPMap.set('(no VP)', (nonStoresVPMap.get('(no VP)') || 0) + 1); continue; }
-        if (allKnownVPAliases.has(vp)) {
-          signupsByVPAlias.set(vp, (signupsByVPAlias.get(vp) || 0) + 1);
-        } else {
-          nonStoresSignups++;
-          nonStoresVPMap.set(vp, (nonStoresVPMap.get(vp) || 0) + 1);
-        }
+        // Not found in employee file — put as non-stores
+        nonStoresSignups++;
+        const vpFromForm = (b.vpAlias || bookingAlias).toLowerCase().trim();
+        nonStoresVPMap.set(vpFromForm, (nonStoresVPMap.get(vpFromForm) || 0) + 1);
       }
     }
 
-    // Filter UK employees by marketplace (city) and level
+    // Filter employees for HC counts
     const filteredUK = (ukEmployees as UKEmployee[]).filter(emp => {
       if (!ltMarketplaces.has(emp.city)) return false;
       if (!ltLevels.has(String(emp.level))) return false;
       return true;
     });
-
-    // Filter EU employees by marketplace (country) and level
     const filteredEU = (euEmployees as EUEmployee[]).filter(emp => {
       if (!ltMarketplaces.has(emp.country)) return false;
       if (!ltLevels.has(String(emp.level))) return false;
       return true;
     });
 
-    // Count HC per director from UK employees (leader field matches director name)
-    const hcByDirector = new Map<string, number>();
+    // Count HC per director full name
+    const hcByDirName = new Map<string, number>();
     for (const emp of filteredUK) {
-      hcByDirector.set(emp.leader, (hcByDirector.get(emp.leader) || 0) + 1);
+      hcByDirName.set(emp.leader, (hcByDirName.get(emp.leader) || 0) + 1);
     }
     for (const emp of filteredEU) {
-      hcByDirector.set(emp.director, (hcByDirector.get(emp.director) || 0) + 1);
+      const dirAlias = (emp.director || '').toLowerCase();
+      const dirFullName = dirAliasToName.get(dirAlias) || '';
+      if (dirFullName) {
+        hcByDirName.set(dirFullName, (hcByDirName.get(dirFullName) || 0) + 1);
+      }
     }
 
     // Build VP rows
     const vpRows = (leadershipData as LeaderVP[]).map(vp => {
       const vpAlias = vp.directors.length > 0 ? vp.directors[0].vpAlias.toLowerCase() : '';
-      const actualSignups = signupsByVPAlias.get(vpAlias) || 0;
 
       const directors = vp.directors.map(d => {
-        const dirHC = hcByDirector.get(d.name) || 0;
-        const dirSignups = signupsByDirector.get(d.name) || 0;
+        const dirHC = hcByDirName.get(d.name) || 0;
+        const dirSignups = signupsByDirName.get(d.name) || 0;
         const calcExpected = Math.round(dirHC * (tolerance / 100));
         const dirExpected = expectedOverrides[d.name] !== undefined ? expectedOverrides[d.name] : calcExpected;
         return { ...d, filteredHC: dirHC, expectedSignups: dirExpected, calcExpected, actualSignups: dirSignups };
       });
+
+      // VP-level signups = sum of directors + any unallocated under this VP
+      const directorSignups = directors.reduce((s, d) => s + d.actualSignups, 0);
+      const unallocated = signupsByDirName.get('__VP__' + vp.name) || 0;
+      const actualSignups = directorSignups + unallocated;
 
       const totalFilteredHC = directors.reduce((s, d) => s + d.filteredHC, 0);
       const calcExpected = Math.round(totalFilteredHC * (tolerance / 100));
@@ -394,21 +434,13 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
       const signupDelta = actualSignups - vpExpected;
 
       return {
-        ...vp,
-        vpAlias,
-        actualSignups,
-        totalFilteredHC,
-        expectedSignups: vpExpected,
-        calcExpected,
-        signupDelta,
-        directors,
+        ...vp, vpAlias, actualSignups, totalFilteredHC,
+        expectedSignups: vpExpected, calcExpected, signupDelta, directors,
       };
     });
 
-    // Sort by actual sign-ups descending
     vpRows.sort((a, b) => b.actualSignups - a.actualSignups);
 
-    // Non-stores breakdown
     const nonStoresDirectors = [...nonStoresVPMap.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([alias, count]) => ({ alias, count }));
