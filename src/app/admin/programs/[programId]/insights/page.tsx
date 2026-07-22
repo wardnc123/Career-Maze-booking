@@ -508,7 +508,36 @@ export default function InsightsPage({ params }: { params: Promise<{ programId: 
 
         {activeTab === 'leadership' && (
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Summary by Leader</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold text-gray-900">Summary by Leader</h2>
+              <button
+                onClick={() => {
+                  const rows: string[] = [];
+                  rows.push('VP,Director,Leader Level,PF,GL/Team,Total HC,Expected Sign-ups,Number of Sign-ups,Delta');
+                  for (const vp of leadershipTracker.vpRows) {
+                    rows.push(`"${vp.name}","","VP","","",${vp.totalFilteredHC},${vp.expectedSignups},${vp.actualSignups},${vp.signupDelta}`);
+                    for (const d of vp.directors) {
+                      const delta = d.actualSignups > 0 ? d.actualSignups - d.expectedSignups : '';
+                      rows.push(`"${vp.name}","${d.name}","${d.level}","${d.pf}","${d.glTeam}",${d.filteredHC},${d.expectedSignups},${d.actualSignups},${delta}`);
+                    }
+                  }
+                  if (leadershipTracker.nonStoresSignups > 0) {
+                    rows.push(`"Non-Stores","","","","",—,—,${leadershipTracker.nonStoresSignups},—`);
+                    for (const d of leadershipTracker.nonStoresDirectors) {
+                      rows.push(`"Non-Stores","${d.alias}","Unrecognized","","",—,—,${d.count},—`);
+                    }
+                  }
+                  const csv = rows.join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url; a.download = 'leadership-tracker.csv';
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
+              >
+                Export CSV
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mb-4">Live sign-up numbers compared against headcount targets. Click a VP row to expand their org. Sign-ups matched by VP alias from bookings.</p>
 
             {/* Filters */}
